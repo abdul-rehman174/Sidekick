@@ -1,23 +1,22 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
+from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import datetime
+from config import settings
 
-# This is the "Connection String"
-DATABASE_URL = "sqlite:///./sidekick.db"
+DATABASE_URL = settings.DATABASE_URL
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(DATABASE_URL)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# This is your Schema
-class ChatLog(Base):
-    __tablename__ = "chat_history"
-
-    id = Column(Integer, primary_key=True, index=True)
-    role = Column(String)  # "user" or "model"
-    content = Column(Text)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-
-# This line is what actually creates the file and the table!
-Base.metadata.create_all(bind=engine)
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
