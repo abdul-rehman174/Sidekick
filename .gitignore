@@ -1,0 +1,14 @@
+# Python
+.env
+__pycache__/
+*.pyc
+sidevenv/
+sidekick.db
+
+# IDEs
+.idea/
+.vscode/
+
+# Frontend
+sidekick-frontend/node_modules/
+sidekick-frontend/dist/
