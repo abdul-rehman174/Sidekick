@@ -13,6 +13,7 @@ class Reminder(Base):
     __tablename__ = "reminders"
     id = Column(Integer, primary_key=True, index=True)
     task = Column(String)
-    celery_id = Column(String, nullable=True) # Add this to track the background task
+    celery_id = Column(String, nullable=True) 
     status = Column(String, default="pending")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    due_at = Column(DateTime, nullable=True) # The exact time the reminder should trigger
