@@ -15,7 +15,6 @@ sleep 2
 
 # 3. Start Celery Worker (the alarm clock)
 echo "🕒 Starting Celery Worker..."
-# Use --uid to ensure it runs as our non-root user (though it should by default now)
 celery -A celery_app worker --loglevel=info &
 
 # 4. Start FastAPI with Gunicorn (the brain)
