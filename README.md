@@ -2,7 +2,7 @@
 title: SideKickBot
 emoji: 💃
 colorFrom: pink
-colorTo: rose
+colorTo: pink
 sdk: docker
 pinned: false
 ---
