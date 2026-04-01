@@ -9,7 +9,7 @@ RUN npm run build
 # --- STAGE 2: Backend (Layer Cached) ---
 FROM python:3.11-slim
 
-# 1. Create a non-root user (Hugging Face requirement)
+# 1. Create a non-root user (Hugging Face Requirement)
 RUN useradd -m -u 1000 user
 USER user
 ENV HOME=/home/user \
