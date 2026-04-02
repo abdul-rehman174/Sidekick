@@ -1,14 +1,25 @@
-# Python
+# Sidekick Professional Standard Gitignore 🛡️🏢🚀✨
+
+# Secrets & Persistence
 .env
+sidekick.db
+dump.rdb
+
+# Environments
+sidevenv/
 __pycache__/
 *.pyc
-sidevenv/
-sidekick.db
+*.pyo
+*.pyd
 
-# IDEs
-.idea/
-.vscode/
-
-# Frontend
+# Frontend Build & Modules
 sidekick-frontend/node_modules/
 sidekick-frontend/dist/
+.eslintcache
+
+# IDEs & System
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
