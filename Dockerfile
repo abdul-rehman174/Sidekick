@@ -1,4 +1,4 @@
-# --- STAGE 1: Build Frontend (Layer Cached) ---
+# --- STAGE 1: Build Frontend ---
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/sidekick-frontend
 COPY sidekick-frontend/package*.json ./
@@ -6,39 +6,41 @@ RUN npm install
 COPY sidekick-frontend/ ./
 RUN npm run build
 
-# --- STAGE 2: Backend (Layer Cached) ---
+# --- STAGE 2: Backend & Runtime ---
 FROM python:3.11-slim
 
-# 1. Create a non-root user (Hugging Face Requirement)
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \
-	PATH=/home/user/.local/bin:$PATH
+# Professional standard: disable byte-code & enable unbuffered logging
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
 
+# Create a non-root user for security
+RUN useradd -m -u 1000 user
 WORKDIR $HOME/app
 
-# 2. Install system dependencies (Redis)
+# Install system dependencies (Redis for All-In-One capability)
 USER root
 RUN apt-get update && apt-get install -y \
     redis-server \
     && rm -rf /var/lib/apt/lists/*
 USER user
 
-# 3. Install Python requirements
+# Install Python requirements
 COPY --chown=user requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# 4. Copy backend code and built frontend
+# Copy backend source code
 COPY --chown=user . .
-COPY --chown=user --from=frontend-builder /app/sidekick-frontend/dist ./sidekick-frontend/dist
 
-# 5. Prepare database file with correct ownership
-RUN touch sidekick.db
+# [PRO ARCHITECTURE]: Copy production frontend assets to /static
+COPY --chown=user --from=frontend-builder /app/sidekick-frontend/dist ./static
 
-# 6. Make start script executable
-RUN chmod +x start.sh
+# Ensure persistent storage exists and is writable
+RUN touch sidekick.db && chmod +x start.sh
 
-# 7. Expose HF port
+# Default Sidekick Port
 EXPOSE 7860
 
+# Launch through professional start script
 CMD ["./start.sh"]

@@ -1,0 +1,37 @@
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy.orm import relationship
+from app.database import Base
+import datetime
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    pin = Column(String, nullable=True) # 4-digit PIN for security
+    bot_name = Column(String, default="Sidekick")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    chats = relationship("ChatLog", back_populates="owner")
+    reminders = relationship("Reminder", back_populates="owner")
+
+class ChatLog(Base):
+    __tablename__ = "chat_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    role = Column(String) # 'user' or 'model'
+    content = Column(Text)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    owner = relationship("User", back_populates="chats")
+
+class Reminder(Base):
+    __tablename__ = "reminders"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    task = Column(String)
+    celery_id = Column(String, nullable=True) 
+    status = Column(String, default="pending") # 'pending', 'completed'
+    due_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    owner = relationship("User", back_populates="reminders")
