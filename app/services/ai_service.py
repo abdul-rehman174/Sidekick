@@ -19,7 +19,7 @@ class AIService:
         # 2. Fetch History (Last 15 messages)
         history = db.query(models.ChatLog).filter(
             models.ChatLog.user_id == user.id
-        ).order_by(models.ChatLog.id.desc()).limit(15).all()
+        ).order_by(models.ChatLog.id.desc()).limit(10).all()
 
         # 3. Build Messages
         system_content = (
@@ -98,15 +98,25 @@ class AIService:
             # 6. [ZERO-FAILURE FALLBACK]: Ensure response_text is NEVER empty
             if not response_text:
                 if new_reminder:
-                    response_text = f"Right away. I've set your '{new_reminder['task']}' jan."
+                    response_text = f"Right away jan. I've set your '{new_reminder['task']}'."
                 elif is_duplicate:
                     response_text = f"Babe, I'm already set the reminder for you. 🫦"
                 else:
                     response_text = f"I'm here, {user.username}. What's on your mind?"
             
-            # 7. Atomic DB Commit
+            # 7. Atomic DB Commit with Usage Metrics (v8.6 Monitoring)
+            usage = completion.usage
+            p_tokens = usage.prompt_tokens if usage else 0
+            c_tokens = usage.completion_tokens if usage else 0
+
             db.add(models.ChatLog(user_id=user.id, role="user", content=user_message))
-            db.add(models.ChatLog(user_id=user.id, role="model", content=response_text))
+            db.add(models.ChatLog(
+                user_id=user.id, 
+                role="model", 
+                content=response_text,
+                prompt_tokens=p_tokens,
+                completion_tokens=c_tokens
+            ))
             db.commit()
 
             return {user.bot_name: response_text, "new_reminder": new_reminder}
