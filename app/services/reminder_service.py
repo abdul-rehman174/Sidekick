@@ -40,7 +40,7 @@ class ReminderService:
         
         reminder.status = "completed"
         # Log resolution in history
-        res_msg = f"Task completed: '{reminder.task}'"
+        res_msg = f"Reminder for u jan: '{reminder.task}'"
         db.add(models.ChatLog(user_id=user_id, role="model", content=res_msg))
         db.commit()
         return True
