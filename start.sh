@@ -15,7 +15,7 @@ sleep 2
 
 # 3. Start Celery Worker (the alarm clock)
 echo "🕒 Starting Celery Worker..."
-celery -A celery_app worker --loglevel=info &
+celery -A app.celery_app worker --loglevel=info &
 
 # 4. Start FastAPI with Gunicorn (the brain)
 # Bind to 7860 for Hugging Face Spaces compatibility

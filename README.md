@@ -1,16 +1,27 @@
-# Sidekick AI Pro (v7.5) 🛡️🏢🚀✨
+---
+title: Sidekick AI Pro
+emoji: 🫦
+colorFrom: pink
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: true
+license: mit
+---
 
-**Sidekick AI Pro** is a production-grade, modular AI application that transforms a sassy/flirty personality into a highly structured and secure personal assistant. Built with **FastAPI**, **React**, and **Celery**, this version (v7.5) represents a full architectural refactor designed for stability, security, and scalability.
+# Sidekick AI Pro (v8.8 Graduation) 🎓🛡️🏢🚀✨
+
+**Sidekick AI Pro** is a production-grade, modular AI application that transforms a sassy/flirty personality into a highly structured and secure personal assistant. Built with **FastAPI**, **React**, and **Celery**, this version (v8.8) represents the final architectural graduation optimized for stability, security, and cloud deployment.
 
 ---
 
 ## 🫦 Key Features
 
+- **Absolute Intent Gating (v8.3)**: Physically blocks tool-calling hallucinations. The AI only sees tools when a reminder intent is detected. 🚿🛡️
+- **Physical De-Duplication Wall (v8.5)**: A 120-minute safety window and fuzzy-matching logic to ensure every reminder triggers **exactly once**. 🚫🔁
+- **Usage & Token Monitoring (v8.6)**: Real-time tracking of prompt and completion tokens stored directly in the persistence layer. 📊🧪
 - **Decoupled "Pro" Architecture**: The entire logic has been refactored into a clean, service-oriented `app/` package. 🎻
-- **State-of-the-Art Security (JWT)**: Replaced insecure header-based ID passing with **JSON Web Tokens**. All private endpoints are protected by cryptographically signed bearer tokens. 🔒
-- **Formal AI Tool Orchestration**: Reminders are handled via the official **Groq/OpenAI Tools API**, ensuring 100% stable execution without brittle regex or messy prompt instructions. 🧠📏
-- **Sensory Notifications**: Real-time browser notifications and voice synthesis for reminders. 🔊🔔
-- **Atomic Persistence**: SQLite integration with SQLAlchemy models for complete chat and task history. 📦
+- **State-of-the-Art Security (JWT)**: Professional-grade authentication using SHA-256 signed bearer tokens. 🔒🛡️
 
 ---
 
@@ -18,60 +29,49 @@
 
 ```text
 /
-├── main.py              # Root Entrypoint (Delegates to app.main)
-├── app/                 # The Hand-Crafted Backend Core
+├── main.py              # Root Entrypoint (Modular Delegation)
+├── app/                 # The Hardened Backend Core
 │   ├── routes/          # API Routers (chat, reminders, users)
 │   ├── services/        # Business Logic (AIService, ReminderService)
-│   ├── models/          # SQLAlchemy Models Package
-│   ├── auth/            # JWT Handler & Security Logic
+│   ├── models/          # SQLAlchemy Metrics Schema
+│   ├── auth/            # JWT Security & Auth Logic
 │   ├── celery_app.py    # Background Task Orchestrator
+│   ├── config.py        # Secure Environment Orchestration
 │   └── database.py      # Persistence Configuration
 ├── sidekick-frontend/   # React/Vite Application
-└── static/              # Compiled Frontend Assets (Docker Deployment)
+└── Dockerfile           # Multi-Stage Production Build
 ```
 
 ---
 
 ## 🛠 Tech Stack
 
-- **Backend**: Python 3.12, FastAPI, SQLAlchemy, Uvicorn.
-- **AI Engine**: Groq (Llama-3.3-70b-versatile) via formal Tool Calling.
+- **Backend**: Python 3.11, FastAPI, SQLAlchemy, Gunicorn.
+- **AI Engine**: Groq (Llama-3.3-70b-versatile).
 - **Security**: Python-Jose (JWT), Passlib (BCrypt).
 - **Background Tasks**: Celery, Redis.
-- **Frontend**: React 18, Vite, TailwindCSS, Axios.
+- **Frontend**: React 18, Vite, TailwindCSS.
 
 ---
 
 ## 🚀 Deployment & Setup
 
-### 1. Local Development (Standard)
-
-**Backend Setup:**
+### 1. Local Development
 1. Install dependencies: `pip install -r requirements.txt`
-2. Configure `.env`: Include your `GROQ_API_KEY` and `REDIS_URL`.
-3. Start Redis (required for Celery).
-4. Run the launcher: `python main.py`
-5. Start Celery Worker: `celery -A app.celery_app worker -l info`
+2. Configure `.env`: Include your `GROQ_API_KEY`.
+3. Start Redis: `redis-server`
+4. Run Backend: `python main.py`
+5. Start Worker: `celery -A app.celery_app worker -l info`
+6. Start Frontend: `cd sidekick-frontend && npm run dev`
 
-**Frontend Setup:**
-1. `cd sidekick-frontend`
-2. `npm install`
-3. `npm run dev`
-
-### 2. Standardized Docker Deployment 🐳
-The project is Docker-Ready using a multi-stage build that compiles the React frontend and serves it directly through FastAPI.
-
-- **Build**: `docker-compose build`
-- **Up**: `docker-compose up -d`
+### 2. Cloud Deployment (Hugging Face / Docker) 🐳
+The project is built for **Hugging Face Spaces** using a multi-stage `Dockerfile`. 
+- **Internal Port**: 7860
+- **SDK**: Docker
 
 ---
 
-## 🔒 Security Note
-This project uses **JWT Bearer Tokens**. Ensure `SECRET_KEY` in `app/config.py` is changed for any production environment. All API requests (except `/api/onboard`) must include the `Authorization: Bearer <token>` header.
+## 🤝 Professional Graduation
+Sidekick AI Pro is designed with absolute package imports (`app.xxx`) and rigorous logic gating to ensure 100% stability in production environments. 
 
----
-
-## 🤝 Contributing
-Sidekick AI Pro is designed with absolute package imports (`app.xxx`) to ensure stability. Please maintain this standard for any architectural contributions.
-
-**Sidekick Pro (v7.5) — Engineered for stability, secured for privacy, and sassier than ever.** 🛡️🏢🚀✨
+**Sidekick Pro (v8.8) — Engineered for stability, secured for privacy, and sassier than ever.** 🎓🛡️🏢🚀✨
