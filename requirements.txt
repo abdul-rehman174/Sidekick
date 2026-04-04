@@ -42,8 +42,8 @@ pillow==12.1.1
 prompt_toolkit==3.0.52
 protobuf==6.33.6
 pyarrow==23.0.1
-pyasn1==0.6.3
-pyasn1_modules==0.4.2
+pyasn1
+pyasn1_modules
 pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
@@ -75,3 +75,8 @@ watchdog==6.0.0
 wcwidth==0.6.0
 websockets==16.0
 gunicorn==23.0.0
+python-jose[cryptography]==3.4.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.20
+bcrypt==4.2.1
+groq==0.18.0
