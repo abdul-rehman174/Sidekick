@@ -5,11 +5,19 @@ import os
 from app.database import engine
 from app import models
 from app.routes import users, reminders, chat
+from contextlib import asynccontextmanager
 
-# Initialize Database
-models.Base.metadata.create_all(bind=engine)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 🫦 Database Genesis: Professional Startup Sequence
+    try:
+        models.Base.metadata.create_all(bind=engine)
+        print("Database Genesis: Absolute Success! 🚤✨⚓️🛡️✨")
+    except Exception as e:
+        print(f"Database Genesis: Postponed/Failed! {e} 💔")
+    yield
 
-app = FastAPI(title="Sidekick AI Pro")
+app = FastAPI(title="Sidekick AI Pro", lifespan=lifespan)
 
 # Middleware
 app.add_middleware(
