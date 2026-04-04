@@ -122,5 +122,6 @@ class AIService:
             return {user.bot_name: response_text, "new_reminder": new_reminder}
 
         except Exception as e:
+            db.rollback() # ✅ Prevent session poisoning!
             print(f"CRITICAL AI FAILURE: {e}")
             return {user.bot_name: "Internal error. The service is currently re-stabilizing.", "new_reminder": None}
