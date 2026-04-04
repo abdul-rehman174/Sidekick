@@ -42,6 +42,7 @@ function App() {
   const messageCountRef = useRef(0); // For sensory detection
   const alreadySpokenRef = useRef(""); // To prevent the echo!
   const buzzedRemindersRef = useRef(new Set()); // Instant Trigger Memory!
+  const isSendingRef = useRef(false); // 🫦 Absolute Sync Lock
 
   // Helper to format remaining time
   const formatRemainingTime = (dueAt) => {
@@ -111,7 +112,7 @@ function App() {
 
   const fetchChatHistoryPolling = async () => {
     // 🫦 Flicker Shield: Lock polling while actively chatting
-    if (loading) return;
+    if (loading || isSendingRef.current) return;
 
     const token = localStorage.getItem('sidekick_token');
     if (!token) return;
@@ -124,9 +125,11 @@ function App() {
         content: msg.content
       }));
       
-      // 🫦 Synchronicity: History Syncing 100%
-      setMessages(newHistory);
-      messageCountRef.current = newHistory.length;
+      // 🫦 Final Race Condition Protection: Double Check before commit
+      if (!isSendingRef.current && !loading) {
+        setMessages(newHistory);
+        messageCountRef.current = newHistory.length;
+      }
     } catch (err) { console.error("History polling err:", err); }
   };
 
@@ -259,6 +262,7 @@ function App() {
     const currentInput = input;
     setInput('');
     setLoading(true);
+    isSendingRef.current = true; // 🫦 ENGAGE LOCK: Absolute Stability Mode
 
     try {
       const token = localStorage.getItem('sidekick_token');
@@ -285,7 +289,10 @@ function App() {
         return; 
       }
       setMessages(prev => [...prev, { role: 'bot', content: "Server error, jan. 💔 Check the browser console!" }]);
-    } finally { setLoading(false); }
+    } finally { 
+      setLoading(false); 
+      isSendingRef.current = false; // 🫦 RELEASE LOCK: Back to normal polling
+    }
   };
 
   // Auto-scroll
