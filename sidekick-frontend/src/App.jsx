@@ -84,11 +84,7 @@ function App() {
          setUser(null);
          return;
       }
-      // Fetch Config (validates token)
-      const configRes = await axios.get(`${API_BASE}/api/config`, { 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      });
-      
+      // Fetch Chat History
       // Fetch Chat History
       const chatRes = await axios.get(`${API_BASE}/api/chat/history`, { 
         headers: { 'Authorization': `Bearer ${token}` } 
@@ -102,27 +98,16 @@ function App() {
       fetchReminders(currentUser.id, token); 
     } catch (err) {
       console.error("Initialization failed:", err);
-      // REBOOT RECOVERY: If server restarted/DB reset, re-onboard automatically using the existing username+PIN
+      // HARD RESET: If server restarted/DB reset, redirect to onboarding
       if (err.response?.status === 404 || err.response?.status === 401) {
-        handleAutoRejoin(currentUser);
+        console.log("🔄 [Security] Session expired or DB reset. Redirecting to onboarding...");
+        localStorage.removeItem('sidekick_user');
+        localStorage.removeItem('sidekick_token');
+        setUser(null);
       }
     }
   };
 
-  const handleAutoRejoin = async (failedUser) => {
-    console.log("🔄 [Security Fix] Attempting to re-link session for:", failedUser.username);
-    try {
-      const res = await axios.post(`${API_BASE}/api/onboard?username=${encodeURIComponent(failedUser.username)}&bot_name=${encodeURIComponent(failedUser.botName)}&pin=${failedUser.pin}`);
-      const refreshedUser = { id: res.data.user_id, username: res.data.username, botName: res.data.bot_name, pin: failedUser.pin };
-      localStorage.setItem('sidekick_user', JSON.stringify(refreshedUser));
-      setUser(refreshedUser);
-      initApp(refreshedUser);
-    } catch (e) {
-      console.error("Re-link failed (Likely wrong PIN or DB Reset):", e);
-      localStorage.removeItem('sidekick_user');
-      setUser(null);
-    }
-  };
 
   const fetchChatHistoryPolling = async () => {
     const token = localStorage.getItem('sidekick_token');
@@ -140,15 +125,14 @@ function App() {
         const lastLocalMsg = messages.length > 0 ? messages[messages.length - 1] : null;
         const lastFetchedMsg = newHistory[newHistory.length - 1];
 
-        // Sensory detection: Trigger only for new BOT messages that match the REMINDER pattern
+        // Sensory detection: Trigger ONLY if it is an official reminder alert
         if (lastFetchedMsg.role === 'bot' && 
             lastFetchedMsg.content !== lastLocalMsg?.content &&
-            lastFetchedMsg.content !== alreadySpokenRef.current) {
+            lastFetchedMsg.content !== alreadySpokenRef.current &&
+            lastFetchedMsg.content.includes("Time for your reminder:")) {
           
-          if (lastFetchedMsg.content.includes("Time for your reminder:")) {
-            triggerSensoryAlert(lastFetchedMsg.content);
-            alreadySpokenRef.current = lastFetchedMsg.content;
-          }
+          triggerSensoryAlert(lastFetchedMsg.content);
+          alreadySpokenRef.current = lastFetchedMsg.content;
         }
       }
       
@@ -307,10 +291,12 @@ function App() {
       }
     } catch (error) {
       console.error("FULL CHAT ERROR:", error);
-      // AUTO-REJOIN on 404 (ID expired/wrong)
-      if (error.response?.status === 404) {
-        console.log("🔄 [Security Fix] Chat ID 404. Re-linking session with PIN...");
-        await handleAutoRejoin(user);
+      // HARD RESET on 404 (ID expired or DB reset)
+      if (error.response?.status === 404 || error.response?.status === 401) {
+        console.log("🔄 [Security Fix] Chat ID 404. Redirecting to onboarding...");
+        localStorage.removeItem('sidekick_user');
+        localStorage.removeItem('sidekick_token');
+        setUser(null);
         return; 
       }
       setMessages(prev => [...prev, { role: 'bot', content: "Server error, jan. 💔 Check the browser console!" }]);
@@ -444,6 +430,31 @@ function App() {
         </div>
 
         <div className="p-4 border-t border-gray-50 min-w-[320px] bg-gray-50/50">
+           {Notification.permission !== 'granted' && (
+             <button 
+               onClick={() => {
+                 Notification.requestPermission().then(perm => {
+                   if (perm === 'granted') {
+                     const dummy = new SpeechSynthesisUtterance("Sensory alerts activated, jan! 🫦");
+                     window.speechSynthesis.speak(dummy);
+                     alert("Sensory alerts AWAKENED! 🫦🔔✨");
+                     window.location.reload();
+                   }
+                 });
+               }}
+               className="w-full mb-2 flex items-center justify-center gap-2 py-3 bg-pink-100 text-pink-600 font-bold rounded-xl hover:bg-pink-200 transition-all animate-pulse"
+             >
+               <Bell size={16} /> WAKE UP SENSORY ALERTS
+             </button>
+           )}
+           
+           <button 
+             onClick={() => triggerSensoryAlert("🫦 Sidekick Pro: Sensory Test Successful! 🚤✨")}
+             className="w-full mb-4 flex items-center justify-center gap-2 py-2 text-[10px] font-bold text-gray-400 hover:text-pink-500 hover:bg-pink-50 border border-dashed border-gray-200 rounded-xl transition-all"
+           >
+             <Sparkles size={12} /> SENSORY FORCE TEST
+           </button>
+
            <div className="flex items-center gap-2 mb-4 px-2">
               <div className="p-2 bg-white rounded-lg border border-gray-100 shadow-sm text-pink-400"><UserIcon size={14} /></div>
               <div className="flex-1 truncate"><p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter leading-none">Logged in as</p><p className="text-xs font-bold text-gray-700 truncate">{user.username}</p></div>

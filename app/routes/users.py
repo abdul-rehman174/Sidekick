@@ -24,7 +24,3 @@ async def onboard_user(username: str, bot_name: str, pin: str = "0000", db: Sess
         "username": user.username, 
         "bot_name": user.bot_name
     }
-
-@router.get("/config")
-async def get_config(user: User = Depends(get_current_user)):
-    return {"bot_name": user.bot_name, "username": user.username, "status": "online"}
