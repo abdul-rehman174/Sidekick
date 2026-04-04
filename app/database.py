@@ -14,8 +14,13 @@ if DATABASE_URL.startswith("postgres://"):
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    # Use pool_pre_ping for cloud connections (Supabase/Neon)
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    # Use pool_pre_ping and pooling limits for cloud resilience (Supabase/Hugging Face)
+    engine = create_engine(
+        DATABASE_URL, 
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
