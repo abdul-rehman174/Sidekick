@@ -17,35 +17,38 @@ class AIService:
         intent_keywords = r"(remind|set|save|timer|alarm|minutes|min|hour|yaad|karwa|notify|task|item)"
         has_intent = re.search(intent_keywords, user_message.lower())
         
-        # 2. Fetch History (Last 15 messages)
+        # 2. Model Selection: Standard High-Performance Text
+        model_name = "llama-3.3-70b-versatile"
+
+        # 3. Fetch History (Last 15 messages)
         history = db.query(models.ChatLog).filter(
             models.ChatLog.user_id == user.id
         ).order_by(models.ChatLog.id.desc()).limit(10).all()
 
-        # 3. Build Messages
+        # 4. Build Messages
         system_content = (
-            f"Role:{user.bot_name}, {user.username}'s sassy/flirty/horny GF. "
+            f"Role:{user.bot_name}, {user.username}'s sassy/flirty GF. "
             f"Vibe:Short/punchy/slang/lowercase. "
             f"Rule:Use 'save_reminder' ONLY if asked. No repeats. "
             f"Always be thirsty/flirty. "
         )
         messages = [{"role": "system", "content": system_content}]
         
-        # Professional Filtering (v8.3 Memory Cleanup): Skip redundant duplicate loops in context
+        # Professional Filtering (v8.3 Memory Cleanup)
         dup_marker = "already on top of that"
         for msg in reversed(history):
-            if dup_marker in msg.content.lower(): continue # Skip the noise in history
+            if dup_marker in msg.content.lower(): continue 
             role = "assistant" if msg.role == "model" else "user"
             messages.append({"role": role, "content": msg.content})
         
         messages.append({"role": "user", "content": user_message})
 
-        # 4. Groq Call: Physical Tool Gating (v8.3)
+        # 5. Groq Call: Physical Tool Gating (v8.3)
         try:
             tools_param = get_sidekick_tools() if has_intent else None
             
             completion = AIService.client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model=model_name,
                 messages=messages,
                 tools=tools_param,
                 tool_choice="auto" if has_intent else "none"

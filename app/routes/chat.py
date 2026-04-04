@@ -8,9 +8,15 @@ from app.models import User
 
 router = APIRouter(prefix="/api")
 
+from pydantic import BaseModel
+from typing import Optional
+
+class ChatRequest(BaseModel):
+    user_message: str
+
 @router.post("/chat")
-async def chat_with_sidekick(user_message: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return AIService.generate_reply(db, user, user_message)
+async def chat_with_sidekick(request: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return AIService.generate_reply(db, user, request.user_message)
 
 @router.get("/chat/history")
 async def get_chat_history(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
