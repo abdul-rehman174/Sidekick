@@ -110,6 +110,9 @@ function App() {
 
 
   const fetchChatHistoryPolling = async () => {
+    // 🫦 Flicker Shield: Lock polling while actively chatting
+    if (loading) return;
+
     const token = localStorage.getItem('sidekick_token');
     if (!token) return;
     try {
@@ -121,34 +124,14 @@ function App() {
         content: msg.content
       }));
       
-      if (newHistory.length > 0) {
-        const lastLocalMsg = messages.length > 0 ? messages[messages.length - 1] : null;
-        const lastFetchedMsg = newHistory[newHistory.length - 1];
-
-        // Sensory detection: Trigger ONLY if it is an official reminder alert
-        if (lastFetchedMsg.role === 'bot' && 
-            lastFetchedMsg.content !== lastLocalMsg?.content &&
-            lastFetchedMsg.content !== alreadySpokenRef.current &&
-            lastFetchedMsg.content.includes("Time for your reminder:")) {
-          
-          triggerSensoryAlert(lastFetchedMsg.content);
-          alreadySpokenRef.current = lastFetchedMsg.content;
-        }
-      }
-      
+      // 🫦 Synchronicity: History Syncing 100%
       setMessages(newHistory);
       messageCountRef.current = newHistory.length;
     } catch (err) { console.error("History polling err:", err); }
   };
 
   const triggerSensoryAlert = (text) => {
-    if (Notification.permission === 'granted') {
-      new Notification(`Reminder`, { 
-        body: text,
-        icon: 'https://cdn-icons-png.flaticon.com/512/2589/2589175.png' 
-      });
-    }
-
+    // 🫦 Voice-Only Delivery: Focused and Professional
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.pitch = 1.1; 
     utterance.rate = 1.0;
@@ -432,31 +415,6 @@ function App() {
         </div>
 
         <div className="p-4 border-t border-gray-50 min-w-[320px] bg-gray-50/50">
-           {Notification.permission !== 'granted' && (
-             <button 
-               onClick={() => {
-                 Notification.requestPermission().then(perm => {
-                   if (perm === 'granted') {
-                     const dummy = new SpeechSynthesisUtterance("Sensory alerts activated, jan! 🫦");
-                     window.speechSynthesis.speak(dummy);
-                     alert("Sensory alerts AWAKENED! 🫦🔔✨");
-                     window.location.reload();
-                   }
-                 });
-               }}
-               className="w-full mb-2 flex items-center justify-center gap-2 py-3 bg-pink-100 text-pink-600 font-bold rounded-xl hover:bg-pink-200 transition-all animate-pulse"
-             >
-               <Bell size={16} /> WAKE UP SENSORY ALERTS
-             </button>
-           )}
-           
-           <button 
-             onClick={() => triggerSensoryAlert("🫦 Sidekick Pro: Sensory Test Successful! 🚤✨")}
-             className="w-full mb-4 flex items-center justify-center gap-2 py-2 text-[10px] font-bold text-gray-400 hover:text-pink-500 hover:bg-pink-50 border border-dashed border-gray-200 rounded-xl transition-all"
-           >
-             <Sparkles size={12} /> SENSORY FORCE TEST
-           </button>
-
            <div className="flex items-center gap-2 mb-4 px-2">
               <div className="p-2 bg-white rounded-lg border border-gray-100 shadow-sm text-pink-400"><UserIcon size={14} /></div>
               <div className="flex-1 truncate"><p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter leading-none">Logged in as</p><p className="text-xs font-bold text-gray-700 truncate">{user.username}</p></div>
