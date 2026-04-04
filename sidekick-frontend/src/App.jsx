@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Send, Sparkles, Bell, CheckCircle, Clock, ChevronLeft, ChevronRight, Trash2, History, MessageSquareCode, User as UserIcon, Heart, Lock } from 'lucide-react';
+import { Send, Sparkles, Bell, CheckCircle, Clock, ChevronLeft, ChevronRight, Trash2, History, MessageSquareCode, User as UserIcon, Heart, Lock, Camera, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -264,22 +264,24 @@ function App() {
   };
 
   const sendMessage = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!input.trim() || loading) return;
     if (!user?.id) {
         alert("Hold on, jan! I'm still waking up. Give me a second... 🫦");
         return;
     }
+
     const userMsg = { role: 'user', content: input };
     setMessages(prev => [...prev, userMsg]);
     const currentInput = input;
     setInput('');
     setLoading(true);
+
     try {
       const token = localStorage.getItem('sidekick_token');
       const response = await axios.post(
-        `${API_BASE}/api/chat?user_message=${encodeURIComponent(currentInput)}`,
-        {},
+        `${API_BASE}/api/chat`,
+        { user_message: currentInput },
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       const botReply = response.data[user.bot_name] || response.data[user.botName] || response.data.reply || "Invalid response format";
@@ -520,7 +522,9 @@ function App() {
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Message ${user.botName}...`}
               className="flex-1 bg-transparent p-2 pl-4 focus:outline-none text-gray-700 placeholder:text-gray-300 font-medium"
             />
-            <button type="submit" disabled={!input.trim() || loading} className="bg-pink-600 text-white p-3 rounded-xl hover:bg-pink-700 transition-all shadow-md disabled:opacity-40"><Send size={18} /></button>
+            <button type="submit" disabled={!input.trim() || loading} className="bg-pink-600 text-white p-3 rounded-xl hover:bg-pink-700 transition-all shadow-md disabled:opacity-40">
+              {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={18} />}
+            </button>
           </form>
           <p className="text-[9px] text-center text-gray-300 mt-2 uppercase tracking-tighter font-bold font-mono">Private Vault Locked • User: {user.username}</p>
         </footer>
