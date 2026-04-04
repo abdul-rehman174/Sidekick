@@ -20,11 +20,12 @@ def send_reminder_task(reminder_id: int):
         ).first()
 
         if reminder:
-            # 1. Debouncing Check (10 minute window for notification suppression)
+            # 1. Debouncing Check (Precision check for NOTIFICATION messages only)
+            notif_prefix = f"Time for your reminder: '{reminder.task}'"
             recent_log_check = db.query(models.ChatLog).filter(
                 models.ChatLog.user_id == reminder.user_id,
                 models.ChatLog.role == "model",
-                models.ChatLog.content.ilike(f"%{reminder.task}%")
+                models.ChatLog.content.ilike(f"{notif_prefix}%")
             ).order_by(models.ChatLog.id.desc()).first()
             
             # If we recently sent a notification for this task, we skip (De-dupe)
