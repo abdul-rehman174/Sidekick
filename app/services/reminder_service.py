@@ -39,9 +39,8 @@ class ReminderService:
             raise HTTPException(status_code=400, detail="Reminder already completed or invalid.")
         
         reminder.status = "completed"
-        # Log resolution in history
-        res_msg = f"Reminder for u jan: '{reminder.task}'"
-        db.add(models.ChatLog(user_id=user_id, role="model", content=res_msg))
+        # 🫦 Logic Refinement: We no longer inject a redundant chat log record here.
+        # This resolves the 'Double-Reminder' issue reported by the user.
         db.commit()
         return True
 
