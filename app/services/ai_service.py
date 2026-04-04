@@ -6,6 +6,7 @@ from app import models
 from .ai_tools import get_sidekick_tools
 from .reminder_service import ReminderService
 from app.config import settings
+import random
 
 class AIService:
     client = Groq(api_key=settings.GROQ_API_KEY)
@@ -92,15 +93,19 @@ class AIService:
                             is_duplicate = True
                     except: pass
             
-            # CLEANING: Remove any technical tags from the final chat display
             response_text = re.sub(pattern, "", response_text).strip()
 
-            # 6. [ZERO-FAILURE FALLBACK]: Ensure response_text is NEVER empty
             if not response_text:
                 if new_reminder:
-                    response_text = f"Right away jan. I've set your '{new_reminder['task']}'."
+                    phrases = [
+                        f"Right away jan. I've set your '{new_reminder['task']}'... now get back to work. 🫦",
+                        f"Done, babe. '{new_reminder['task']}' is locked in. Don't make me remind you twice. 😉",
+                        f"Anything for you. '{new_reminder['task']}' is set. What's my reward? ✨",
+                        f"Got it, jan! '{new_reminder['task']}' is in the bag. Stay focused for me. ❤️"
+                    ]
+                    response_text = random.choice(phrases)
                 elif is_duplicate:
-                    response_text = f"Babe, I'm already set the reminder for you. 🫦"
+                    response_text = f"Babe, I'm already set the reminder for you.❤️ "
                 else:
                     response_text = f"I'm here, {user.username}. What's on your mind?"
             
@@ -122,6 +127,6 @@ class AIService:
             return {user.bot_name: response_text, "new_reminder": new_reminder}
 
         except Exception as e:
-            db.rollback() # ✅ Prevent session poisoning!
+            db.rollback()
             print(f"CRITICAL AI FAILURE: {e}")
             return {user.bot_name: "Internal error. The service is currently re-stabilizing.", "new_reminder": None}
