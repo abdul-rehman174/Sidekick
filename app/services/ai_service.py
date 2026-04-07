@@ -13,11 +13,9 @@ class AIService:
 
     @staticmethod
     def generate_reply(db: Session, user, user_message: str):
-        # 1. Intent Scanner: Is the user actually asking for a reminder? (v8.3 Physical Gating)
         intent_keywords = r"(remind|set|save|timer|alarm|minutes|min|hour|yaad|karwa|notify|task|item)"
         has_intent = re.search(intent_keywords, user_message.lower())
         
-        # 2. Model Selection: Standard High-Performance Text
         model_name = "llama-3.3-70b-versatile"
 
         # 3. Fetch History (Last 15 messages)
