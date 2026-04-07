@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file for local development
 load_dotenv()
 
 class Settings:
@@ -18,5 +17,4 @@ class Settings:
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 # 1 day duration
 
-# Singleton instance for project-wide access
 settings = Settings()
