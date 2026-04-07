@@ -50,12 +50,10 @@ class ReminderService:
         Creates a new reminder with a fuzzy duplicate check.
         Returns: (is_new: bool, message: str)
         """
-        # 1. Fuzzy Duplicate Check (120 minute window for absolute stability)
         now = datetime.datetime.utcnow()
         recent_check = now - datetime.timedelta(minutes=120)
         
-        # Normalize task text to catch "identical-but-different" tasks
-        task_norm = task.lower().strip().rstrip("s").rstrip("!") 
+        task_norm = task.lower().strip().rstrip("s").rstrip("!")
         
         existing = db.query(models.Reminder).filter(
             models.Reminder.user_id == user_id,
@@ -73,7 +71,6 @@ class ReminderService:
         db.commit()
         db.refresh(new_reminder)
         
-        # 3. Trigger Celery Task
         send_reminder_task.apply_async(args=[new_reminder.id], countdown=minutes * 60)
         
         success_msg = f"I've got your '{task}' on my list now. I'll make sure you don't forget."
