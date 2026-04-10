@@ -14,7 +14,6 @@ def send_reminder_task(reminder_id: int):
     """
     db = SessionLocal()
     try:
-        # 1. Find the specific reminder by its ID
         reminder = db.query(models.Reminder).filter(
             models.Reminder.id == reminder_id
         ).first()
@@ -28,14 +27,12 @@ def send_reminder_task(reminder_id: int):
                 models.ChatLog.content.ilike(f"{notif_prefix}%")
             ).order_by(models.ChatLog.id.desc()).first()
             
-            # If we recently sent a notification for this task, we skip (De-dupe)
             if recent_log_check:
                 reminder.status = "completed" # Mark as done but skip log
                 db.commit()
                 print(f"[REDUNDANCY] Task '{reminder.task}' was already notified. Skipping.")
                 return f"Reminder ID {reminder_id} suppressed as duplicate."
 
-            # 2. Mark as completed and Notify
             reminder.status = "completed"
             
             user = db.query(models.User).filter(models.User.id == reminder.user_id).first()
