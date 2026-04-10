@@ -20,7 +20,6 @@ RUN apt-get update && apt-get install -y \
     redis-server \
     && rm -rf /var/lib/apt/lists/*
 
-# Fix global permissions for the non-root user
 RUN chown -R user:user /home/user
 
 USER user
