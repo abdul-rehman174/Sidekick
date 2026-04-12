@@ -9,7 +9,6 @@ from app.config import settings
 from app.database import get_db
 from app.models import User
 
-# Standard HTTP Bearer scheme for token extraction
 security = HTTPBearer()
 
 def create_access_token(data: dict) -> str:
@@ -51,7 +50,6 @@ async def get_current_user(
     )
     
     try:
-        # Decode the token using the system's secret key
         payload = jwt.decode(auth.credentials, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
@@ -59,7 +57,6 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     
-    # Verify the user exists in the persistence layer
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
         raise credentials_exception
