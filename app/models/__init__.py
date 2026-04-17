@@ -9,6 +9,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     pin = Column(String, nullable=True) # 4-digit PIN for security
     bot_name = Column(String, default="Sidekick")
+    persona_training = Column(Text, nullable=True) # AI style training data
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     chats = relationship("ChatLog", back_populates="owner")
