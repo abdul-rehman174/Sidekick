@@ -2,7 +2,6 @@ import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app import models
-from app.celery_app import send_reminder_task
 from app.config import settings
 
 class ReminderService:
@@ -70,8 +69,6 @@ class ReminderService:
         db.add(new_reminder)
         db.commit()
         db.refresh(new_reminder)
-        
-        send_reminder_task.apply_async(args=[new_reminder.id], countdown=minutes * 60)
         
         success_msg = f"I've got your '{task}' on my list now. I'll make sure you don't forget."
         return True, success_msg
