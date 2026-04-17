@@ -9,12 +9,11 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 🫦 Database Genesis: Professional Startup Sequence
     try:
         models.Base.metadata.create_all(bind=engine)
-        print("Database Genesis: Absolute Success! 🚤✨⚓️🛡️✨")
+        print("Database Genesis: Absolute Success!")
     except Exception as e:
-        print(f"Database Genesis: Postponed/Failed! {e} 💔")
+        print(f"Database Genesis: Postponed/Failed! {e} ")
     yield
 
 app = FastAPI(title="Sidekick AI Pro", lifespan=lifespan)
