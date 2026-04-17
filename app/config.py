@@ -10,7 +10,6 @@ class Settings:
     """
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./sidekick.db")
     
     SECRET_KEY: str = os.getenv("SECRET_KEY", "sidekick-security-vault-change-this")
