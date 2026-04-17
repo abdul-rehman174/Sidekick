@@ -43,6 +43,9 @@ function App() {
   const alreadySpokenRef = useRef(""); // To prevent the echo!
   const buzzedRemindersRef = useRef(new Set()); // Instant Trigger Memory!
   const isSendingRef = useRef(false); // 🫦 Absolute Sync Lock
+  const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
+  const [personaTraining, setPersonaTraining] = useState(user?.persona_training || '');
+  const [activeNotification, setActiveNotification] = useState(null);
 
   // Helper to format remaining time
   const formatRemainingTime = (dueAt) => {
@@ -63,6 +66,7 @@ function App() {
     if (savedUser) {
       const parsedUser = JSON.parse(savedUser);
       setUser(parsedUser);
+      setPersonaTraining(parsedUser.persona_training || '');
       userRef.current = parsedUser; // Sync Ref
       initApp(parsedUser);
     }
@@ -139,6 +143,10 @@ function App() {
     utterance.pitch = 1.1; 
     utterance.rate = 1.0;
     window.speechSynthesis.speak(utterance);
+
+    // 🫦 Visual Alert: Add pop-up notification
+    setActiveNotification(text);
+    setTimeout(() => setActiveNotification(null), 5000); // Hide after 5 seconds
   };
 
   const fetchReminders = async (forcedId, forcedToken) => {
@@ -247,6 +255,28 @@ function App() {
       setReminders([]);
       setHistoryReminders([]);
     } catch (err) { console.error("Clear error:", err); }
+  };
+
+  const savePersona = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('sidekick_token');
+      const res = await axios.post(`${API_BASE}/api/user/persona`, 
+        { persona_training: personaTraining },
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      const updatedUser = { ...user, persona_training: res.data.persona_training };
+      setUser(updatedUser);
+      localStorage.setItem('sidekick_user', JSON.stringify(updatedUser));
+      setIsPersonaModalOpen(false);
+      alert("Style locked in, babe! I'll behave just like that now. 🫦✨");
+    } catch (err) {
+      console.error("Persona save err:", err);
+      alert("Couldn't save the style, jan. 💔");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const sendMessage = async (e) => {
@@ -370,6 +400,7 @@ function App() {
   const activeRemindersList = viewMode === 'active' ? reminders : historyReminders;
 
   return (
+    <>
     <div className="flex h-screen bg-[#F7F9FB] font-sans text-gray-900 overflow-hidden text-[14px]">
       <motion.aside
         initial={false}
@@ -430,6 +461,14 @@ function App() {
                 className="text-[10px] font-bold text-pink-400 hover:text-pink-600 transition-colors bg-white px-2 py-1 rounded-md border border-gray-100"
               >Log out</button>
            </div>
+           
+           <button 
+             onClick={() => setIsPersonaModalOpen(true)}
+             className="w-full flex items-center justify-center gap-2 py-2 mb-2 text-xs font-bold text-pink-500 bg-pink-50/50 hover:bg-pink-100/50 rounded-xl transition-all border border-pink-100/50"
+           >
+             <Sparkles size={14} /> PERSONA MIRROR
+           </button>
+
            <button onClick={clearAllHistory} className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
              <Trash2 size={14} /> RESET MY DATA
            </button>
@@ -495,6 +534,99 @@ function App() {
         </footer>
       </div>
     </div>
+    
+    {/* Persona Mirroring Modal */}
+    <AnimatePresence>
+      {isPersonaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setIsPersonaModalOpen(false)}
+            className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }} 
+            animate={{ opacity: 1, scale: 1, y: 0 }} 
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden relative border border-pink-100"
+          >
+            <div className="p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-pink-50 rounded-2xl text-pink-500">
+                    <Sparkles size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-gray-800 tracking-tight">Persona Mirror</h2>
+                    <p className="text-xs text-gray-400">Train me with real chat patterns</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsPersonaModalOpen(false)} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <X size={20} className="text-gray-400" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2">Paste Chat Samples</label>
+                  <textarea 
+                    value={personaTraining}
+                    onChange={(e) => setPersonaTraining(e.target.value)}
+                    placeholder="Paste messages from the person you want me to mimic... (e.g. 'hey bae', 'hru?', 'miss u sm')"
+                    className="w-full h-64 p-5 bg-gray-50 border border-gray-100 rounded-[1.5rem] focus:outline-none focus:border-pink-300 transition-all text-sm text-gray-700 font-medium resize-none leading-relaxed"
+                  />
+                  <p className="text-[10px] text-gray-400 italic px-2">
+                    Tip: The more messages you paste, the more accurate my vibe will be! ✨
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => { setPersonaTraining(''); }}
+                    className="flex-1 py-3 text-xs font-bold text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all"
+                  >
+                    RESET DEFAULT
+                  </button>
+                  <button 
+                    onClick={savePersona}
+                    disabled={loading}
+                    className="flex-[2] py-4 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-2xl shadow-lg shadow-pink-200 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {loading ? "Locking it in..." : "SAVE & APPLY STYLE 🫦"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+
+    {/* Visual Reminder Notification Layer */}
+    <AnimatePresence>
+      {activeNotification && (
+        <motion.div 
+          initial={{ opacity: 0, y: -50, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-sm"
+        >
+          <div className="bg-gradient-to-r from-pink-600 to-rose-500 p-4 rounded-2xl shadow-2xl border border-white/20 flex items-center gap-4 text-white">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <Bell className="animate-bounce" size={24} />
+            </div>
+            <div className="flex-1">
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Reminder Alert! 🫦</p>
+              <p className="text-sm font-bold leading-tight">{activeNotification.replace(/Babe! Time for your reminder: '(.*)'! 😘/, '$1')}</p>
+            </div>
+            <button onClick={() => setActiveNotification(null)} className="p-1 hover:bg-white/10 rounded-full">
+              <X size={18} />
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 }
 
