@@ -75,3 +75,4 @@ The project is built for **Hugging Face Spaces** using a multi-stage `Dockerfile
 Sidekick AI Pro is designed with absolute package imports (`app.xxx`) and rigorous logic gating to ensure 100% stability in production environments. 
 
 **Sidekick Pro (v8.8) — Engineered for stability, secured for privacy, and sassier than ever.** 🎓🛡️🏢🚀✨
+ I will be refactoring the historical data lookup and restock velocity logic. Instead of scanning orders one-by-one, I'll use aggregated database queries. This will make the AI significantly fast
