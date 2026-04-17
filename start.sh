@@ -5,19 +5,7 @@ set -e
 
 echo "🚀 Starting Sidekick Application (Hugging Face Mode)..."
 
-# 1. Start Redis Server (the clipboard)
-# We use a custom directory so it can write its dump.rdb file in a writable folder
-echo "📦 Starting Local Redis Server..."
-redis-server --daemonize yes --dir .
-
-# 2. Wait a moment for Redis to wake up
-sleep 2
-
-# 3. Start Celery Worker (the alarm clock)
-echo "🕒 Starting Celery Worker..."
-celery -A app.celery_app worker --loglevel=info &
-
-# 4. Start FastAPI with Gunicorn (the brain)
+# Start FastAPI with Gunicorn (the brain)
 # Bind to 7860 for Hugging Face Spaces compatibility
 echo "🌐 Starting FastAPI Server on port 7860..."
 gunicorn main:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:7860
