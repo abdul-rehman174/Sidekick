@@ -22,4 +22,4 @@ sidekick-frontend/dist/
 .idea/
 .DS_Store
 *.swp
-*.swo
+*.swodump.rdb
