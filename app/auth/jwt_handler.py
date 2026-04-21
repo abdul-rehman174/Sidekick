@@ -3,7 +3,8 @@ from typing import Optional
 from jose import JWTError, jwt
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from app.config import settings
 from app.database import get_db
@@ -28,7 +29,7 @@ def create_access_token(data: dict) -> str:
 
 async def get_current_user(
     auth: HTTPAuthorizationCredentials = Depends(security), 
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     """
     Dependency to extract and validate the current user from a Bearer token.
@@ -57,7 +58,9 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
     
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    result = await db.execute(select(User).filter(User.id == int(user_id)))
+    user = result.scalars().first()
+    
     if user is None:
         raise credentials_exception
         

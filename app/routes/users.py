@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from app.database import get_db
 from app.services.user_service import UserService
 from app.config import settings
@@ -10,8 +11,8 @@ from app.models import User
 router = APIRouter(prefix="/api")
 
 @router.post("/onboard")
-async def onboard_user(username: str, bot_name: str, pin: str = "0000", db: Session = Depends(get_db)):
-    user = UserService.onboard_user(db, username, bot_name, pin)
+async def onboard_user(username: str, bot_name: str, pin: str = "0000", db: AsyncSession = Depends(get_db)):
+    user = await UserService.onboard_user(db, username, bot_name, pin)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized access. Invalid PIN.")
     
@@ -27,8 +28,9 @@ async def onboard_user(username: str, bot_name: str, pin: str = "0000", db: Sess
     }
 
 @router.post("/user/persona")
-async def update_persona(persona_data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    user = db.query(User).filter(User.id == current_user.id).first()
+async def update_persona(persona_data: dict, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(select(User).filter(User.id == current_user.id))
+    user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -36,6 +38,6 @@ async def update_persona(persona_data: dict, db: Session = Depends(get_db), curr
     raw_persona = persona_data.get("persona_training", "")
     user.persona_training = raw_persona.strip()[:1500] if raw_persona else ""
     
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     return {"status": "success", "persona_training": user.persona_training}
