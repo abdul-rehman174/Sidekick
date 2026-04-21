@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from app.database import get_db
 from app.services.ai_service import AIService
 from app.services.user_service import UserService
@@ -15,16 +16,20 @@ class ChatRequest(BaseModel):
     user_message: str
 
 @router.post("/chat")
-async def chat_with_sidekick(request: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return AIService.generate_reply(db, user, request.user_message)
+async def chat_with_sidekick(request: ChatRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    return await AIService.generate_reply(db, user, request.user_message)
 
 @router.get("/chat/history")
-async def get_chat_history(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_chat_history(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from app import models
-    return db.query(models.ChatLog).filter(models.ChatLog.user_id == user.id).order_by(models.ChatLog.id.desc()).limit(20).all()
+    result = await db.execute(
+        select(models.ChatLog).filter(models.ChatLog.user_id == user.id)
+        .order_by(models.ChatLog.id.desc()).limit(20)
+    )
+    return result.scalars().all()
 
 @router.post("/clear-all")
-async def clear_all_data(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if UserService.clear_all_data(db, user.id):
+async def clear_all_data(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if await UserService.clear_all_data(db, user.id):
         return {"status": "success", "message": "All user data has been successfully cleared."}
     raise HTTPException(status_code=500, detail="Failed to wipe data")
