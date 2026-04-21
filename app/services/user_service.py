@@ -1,17 +1,19 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from sqlalchemy import delete
 from app import models
 from app.config import settings
-from app.database import get_db
 
 class UserService:
     @staticmethod
-    def get_user_by_id(db: Session, user_id: int):
-        return db.query(models.User).filter(models.User.id == user_id).first()
+    async def get_user_by_id(db: AsyncSession, user_id: int):
+        result = await db.execute(select(models.User).filter(models.User.id == user_id))
+        return result.scalars().first()
 
     @staticmethod
-    def onboard_user(db: Session, username: str, bot_name: str, pin: str = "0000"):
-        user = db.query(models.User).filter(models.User.username == username).first()
+    async def onboard_user(db: AsyncSession, username: str, bot_name: str, pin: str = "0000"):
+        result = await db.execute(select(models.User).filter(models.User.username == username))
+        user = result.scalars().first()
         if not user:
             user = models.User(username=username, bot_name=bot_name, pin=pin)
             db.add(user)
@@ -20,13 +22,13 @@ class UserService:
                 return None # Unauthorized
             user.bot_name = bot_name
         
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
         return user
 
     @staticmethod
-    def clear_all_data(db: Session, user_id: int):
-        db.execute(delete(models.ChatLog).where(models.ChatLog.user_id == user_id))
-        db.execute(delete(models.Reminder).where(models.Reminder.user_id == user_id))
-        db.commit()
+    async def clear_all_data(db: AsyncSession, user_id: int):
+        await db.execute(delete(models.ChatLog).where(models.ChatLog.user_id == user_id))
+        await db.execute(delete(models.Reminder).where(models.Reminder.user_id == user_id))
+        await db.commit()
         return True
