@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from app.exceptions import AIServiceException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
@@ -10,13 +12,21 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        models.Base.metadata.create_all(bind=engine)
+        async with engine.begin() as conn:
+            await conn.run_sync(models.Base.metadata.create_all)
         print("Database Genesis: Absolute Success!")
     except Exception as e:
         print(f"Database Genesis: Postponed/Failed! {e} ")
     yield
 
 app = FastAPI(title="Sidekick AI Pro", lifespan=lifespan)
+
+@app.exception_handler(AIServiceException)
+async def ai_service_exception_handler(request: Request, exc: AIServiceException):
+    return JSONResponse(
+        status_code=500,
+        content={"status": "error", "message": str(exc.message)}
+    )
 
 # Middleware
 app.add_middleware(
