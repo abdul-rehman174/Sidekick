@@ -21,11 +21,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# Columns added after the initial schema. Listed here so existing DBs
-# (Supabase + local sqlite) get them on startup without dropping data.
+# Every column on every table that has ever been added to the model.
+# Listed here so existing DBs (Supabase + local sqlite) that were created
+# under an older schema get every missing column added on startup. The
+# migrations are idempotent — Postgres uses ADD COLUMN IF NOT EXISTS,
+# SQLite swallows duplicate-column errors, so re-running is a no-op.
+# Constraints (NOT NULL, DEFAULT) are intentionally relaxed here so that
+# the ALTER doesn't fail on tables that may already have rows; new
+# inserts go through the model and always supply a non-null value.
 _SOFT_MIGRATIONS = [
+    ("users", "pin_hash", "VARCHAR(255)"),
+    ("users", "persona_name", "VARCHAR(40)"),
+    ("users", "behavior_profile", "TEXT"),
+    ("users", "system_instruction", "TEXT"),
     ("users", "chat_summary", "TEXT"),
-    ("users", "summary_message_count", "INTEGER NOT NULL DEFAULT 0"),
+    ("users", "summary_message_count", "INTEGER DEFAULT 0"),
 ]
 
 
