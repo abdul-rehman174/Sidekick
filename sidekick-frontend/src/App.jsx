@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
   Send, Sparkles, Bell, CheckCircle, Clock, ChevronLeft, ChevronRight,
-  Trash2, History, User as UserIcon, Lock, X, Settings, Wand2, Heart,
+  Trash2, History, User as UserIcon, Lock, X, Settings, Wand2, Heart, Menu,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,7 +38,9 @@ function App() {
   const [reminders, setReminders] = useState([]);
   const [historyReminders, setHistoryReminders] = useState([]);
   const [viewMode, setViewMode] = useState('active');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() =>
+    typeof window === 'undefined' ? true : window.innerWidth >= 768
+  );
   const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
   const [persona, setPersona] = useState({ persona_name: '', behavior_profile: '', system_instruction: '' });
   const [activeNotification, setActiveNotification] = useState(null);
@@ -323,11 +325,11 @@ function App() {
 
   if (!user) {
     return (
-      <div className="h-screen w-screen bg-gradient-to-br from-blush-50 via-cream-50 to-purple-50 flex items-center justify-center p-6 font-sans">
+      <div className="min-h-screen w-screen bg-gradient-to-br from-blush-50 via-cream-50 to-purple-50 flex items-center justify-center p-4 sm:p-6 font-sans">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white/90 backdrop-blur p-8 rounded-3xl shadow-xl max-w-md w-full border border-blush-100"
+          className="bg-white/90 backdrop-blur p-6 sm:p-8 rounded-3xl shadow-xl max-w-md w-full border border-blush-100"
         >
           <div className="text-center space-y-2 mb-8">
             <div className="inline-block p-4 bg-gradient-to-br from-blush-100 to-fuchsia-100 rounded-2xl text-blush-500 mb-2 shadow-sm">
@@ -413,10 +415,22 @@ function App() {
   return (
     <>
       <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden text-sm">
-        <motion.aside
-          initial={false}
-          animate={{ width: isSidebarOpen ? 320 : 0, opacity: isSidebarOpen ? 1 : 0 }}
-          className="bg-white/80 backdrop-blur border-r border-blush-100 flex flex-col shadow-sm z-20 relative overflow-hidden"
+        {/* mobile backdrop — only visible when sidebar is open on small screens */}
+        {isSidebarOpen && (
+          <div
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden fixed inset-0 bg-blush-900/30 backdrop-blur-sm z-20"
+          />
+        )}
+        <aside
+          className={`
+            bg-white/95 md:bg-white/80 backdrop-blur border-r border-blush-100 flex flex-col shadow-lg
+            fixed md:static inset-y-0 left-0 w-80 z-30 md:z-10
+            transform transition-transform duration-300
+            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+            ${isSidebarOpen ? 'md:w-80' : 'md:w-0 md:overflow-hidden md:border-r-0'}
+            md:transition-[width]
+          `}
         >
           <div className="p-4 border-b border-blush-100 flex items-center justify-between min-w-[320px]">
             <div className="flex items-center gap-2 text-blush-600 font-semibold">
@@ -477,7 +491,7 @@ function App() {
               </button>
             </div>
             <button
-              onClick={() => setIsPersonaModalOpen(true)}
+              onClick={() => { setIsPersonaModalOpen(true); if (window.innerWidth < 768) setIsSidebarOpen(false); }}
               className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-blush-600 bg-blush-100 hover:bg-blush-200 rounded-xl transition"
             >
               <Settings size={14} /> Persona settings
@@ -486,31 +500,45 @@ function App() {
               <Trash2 size={14} /> Clear all data
             </button>
           </div>
-        </motion.aside>
+        </aside>
 
         <div className="flex-1 flex flex-col relative min-w-0">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="absolute left-4 top-20 z-30 p-1.5 bg-white rounded-full border border-blush-200 shadow-sm text-blush-400 hover:text-blush-600 transition">
+          {/* desktop-only collapse chevron, sits along the gutter */}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="hidden md:flex absolute left-4 top-20 z-30 p-1.5 bg-white rounded-full border border-blush-200 shadow-sm text-blush-400 hover:text-blush-600 transition"
+          >
             {isSidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
           </button>
 
-          <header className="bg-white/70 backdrop-blur border-b border-blush-100 p-4 flex items-center gap-3">
+          <header className="bg-white/70 backdrop-blur border-b border-blush-100 p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            {/* mobile-only hamburger to open sidebar */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="md:hidden p-2 rounded-lg text-blush-500 hover:bg-blush-50 transition"
+              aria-label="Open menu"
+            >
+              <Menu size={20} />
+            </button>
             <div className="bg-gradient-to-br from-blush-500 to-fuchsia-500 p-2 rounded-xl shadow-sm">
               <Heart className="text-white fill-white" size={16} />
             </div>
             <h1 className="font-semibold text-blush-900 flex-1 truncate">{user.personaName}</h1>
             {/* TOKEN_COUNTER: session-wide token totals — remove when done testing */}
-            <div className="text-[10px] font-mono text-slate-500 bg-blush-50 px-3 py-1.5 rounded-lg border border-blush-200" title="Session token totals">
+            <div className="text-[10px] font-mono text-slate-500 bg-blush-50 px-2 sm:px-3 py-1.5 rounded-lg border border-blush-200" title="Session token totals">
               <span className="font-bold text-slate-700">{sessionTokens.total.toLocaleString()}</span> tok
-              <span className="text-slate-300 mx-1.5">•</span>
-              in {sessionTokens.prompt.toLocaleString()}
-              <span className="text-slate-300 mx-1.5">•</span>
-              out {sessionTokens.completion.toLocaleString()}
-              <span className="text-slate-300 mx-1.5">•</span>
-              {sessionTokens.calls} msg
+              <span className="hidden sm:inline">
+                <span className="text-slate-300 mx-1.5">•</span>
+                in {sessionTokens.prompt.toLocaleString()}
+                <span className="text-slate-300 mx-1.5">•</span>
+                out {sessionTokens.completion.toLocaleString()}
+                <span className="text-slate-300 mx-1.5">•</span>
+                {sessionTokens.calls} msg
+              </span>
             </div>
           </header>
 
-          <main ref={mainRef} onScroll={handleMainScroll} className="flex-1 overflow-y-auto p-6 space-y-5">
+          <main ref={mainRef} onScroll={handleMainScroll} className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-5">
             <AnimatePresence>
               {messages.length === 0 && !loading && (
                 <div className="h-full flex flex-col items-center justify-center text-center space-y-3 max-w-sm mx-auto pt-24">
@@ -553,7 +581,7 @@ function App() {
             <div ref={scrollRef} />
           </main>
 
-          <footer className="p-4 bg-white/70 backdrop-blur border-t border-blush-100">
+          <footer className="p-3 sm:p-4 bg-white/70 backdrop-blur border-t border-blush-100">
             <form onSubmit={sendMessage} className="max-w-4xl mx-auto flex gap-2 bg-white p-2 rounded-2xl border border-blush-200 shadow-sm focus-within:border-blush-400">
               <input
                 type="text" value={input} onChange={e => setInput(e.target.value)}
@@ -570,7 +598,7 @@ function App() {
 
       <AnimatePresence>
         {isPersonaModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setIsPersonaModalOpen(false)}
@@ -582,7 +610,7 @@ function App() {
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden relative border border-blush-100 z-10"
             >
-              <div className="p-7 space-y-5 max-h-[85vh] overflow-y-auto">
+              <div className="p-5 sm:p-7 space-y-5 max-h-[88vh] overflow-y-auto">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="p-2.5 bg-gradient-to-br from-blush-100 to-fuchsia-100 rounded-xl text-blush-500"><Heart size={20} className="fill-blush-500" /></div>
