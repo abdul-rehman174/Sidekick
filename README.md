@@ -1,6 +1,6 @@
 ---
-title: Sidekick AI Pro
-emoji: 🫦
+title: Sidekick
+emoji: 💖
 colorFrom: pink
 colorTo: purple
 sdk: docker
@@ -9,67 +9,59 @@ pinned: true
 license: mit
 ---
 
-# Sidekick AI Pro (v9.0 Professional Edition) 🎓🛡️🏢🚀✨
+# Sidekick
 
-**Sidekick AI Pro** is a highly optimized, enterprise-grade AI application. Building upon its predecessors, version 9.0 introduces a totally asynchronous architecture, rendering slow blocks extinct. Built with **FastAPI**, **React**, and **aiosqlite**, this version represents a clean leap forward in performance, decoupled architecture, and scalable design.
+A persona-cloning chat app. Each user logs in with a username + PIN; their chats stay private per account. The bot learns how to sound like a specific person when you paste their real messages as a **behavior profile**, and you can layer extra rules on top via a **system instruction**.
 
----
+## How the persona works
 
-## 🫦 Key Features
+The system prompt sent to the model is assembled from three user-controlled pieces:
 
-- **Asynchronous Execution**: Fully migrated to `AsyncGroq` and `aiosqlite` connected to an async `SQLAlchemy 2.0` infrastructure to support massive horizontal scaling and zero-blocking routes. 🚀
-- **Strict Pydantic Validation**: Bulletproof environment configuration (`pydantic-settings`) ensuring absolute boot safety. 🛡️
-- **Professional Modularity**: The `AIService` has been abstracted into localized functions separating pure IO tasks (Inference) from Database handling/Tool extractions. 🎻
-- **State-of-the-Art Security (JWT)**: Professional-grade authentication using SHA-256 signed bearer tokens with exact session dependencies. 🔒🛡️
+1. **`persona_name`** — who the bot is pretending to be.
+2. **`behavior_profile`** — pasted chat samples from that person. The model mirrors their vocabulary, slang, tone, punctuation, and language mix.
+3. **`system_instruction`** — additional instructions you want applied on top ("respond in Roman Urdu", "stay playful", etc).
 
----
+Open **Persona settings** in the sidebar to edit any of these at any time.
 
-## 📁 System Architecture
+## Stack
 
-```text
-/
-├── main.py              # Root Entrypoint (Modular Delegation)
-├── app/                 # The Hardened Backend Core
-│   ├── routes/          # API Routers (chat, reminders, users)
-│   ├── services/        # Business Logic (AIService, ReminderService)
-│   ├── models/          # SQLAlchemy Metrics Schema
-│   ├── auth/            # JWT Security & Auth Logic
-│   ├── exceptions.py    # Custom Exception Handlers 
-│   ├── config.py        # Secure Pydantic Settings
-│   └── database.py      # Async db drivers & context managers
-├── sidekick-frontend/   # React/Vite Application
-├── tests/               # Pytest Suite
-└── Dockerfile           # Multi-Stage Production Build
+- **Backend:** FastAPI, async SQLAlchemy, aiosqlite (default) or Postgres (asyncpg), Groq `llama-3.3-70b-versatile` via `AsyncGroq`
+- **Auth:** JWT bearer tokens, bcrypt-hashed PINs
+- **Frontend:** React 19 + Vite + Tailwind
+
+## Setup
+
+1. `cp .env.example .env` and fill in `GROQ_API_KEY` and `SECRET_KEY` (generate with `python -c 'import secrets; print(secrets.token_urlsafe(32))'`).
+2. `pip install -r requirements.txt`
+3. `python main.py` (backend on `:7860`)
+4. `cd sidekick-frontend && npm install && npm run dev` (frontend on `:5173`)
+
+## Docker
+
+```
+docker compose up --build
 ```
 
----
+Frontend is built into `static/` and served from the FastAPI app on port 7860.
 
-## 🛠 Tech Stack
+## API
 
-- **Backend**: Python 3.12, FastAPI, SQLAlchemy (Async), Gunicorn.
-- **AI Engine**: Groq (Llama-3.3-70b-versatile via `AsyncGroq`).
-- **Security**: Python-Jose (JWT), Passlib (BCrypt).
-- **Frontend**: React 18, Vite, TailwindCSS.
+| Method | Path | Body | Purpose |
+|---|---|---|---|
+| `POST` | `/api/onboard` | `{username, pin, persona_name?}` | Register or log in. Returns JWT. |
+| `GET`  | `/api/persona` | — | Current persona settings. |
+| `PUT`  | `/api/persona` | `{persona_name?, behavior_profile?, system_instruction?}` | Update any subset. |
+| `POST` | `/api/chat` | `{user_message}` | Send a message, get `{reply, new_reminder?}`. |
+| `GET`  | `/api/chat/history` | — | Last 50 messages. |
+| `POST` | `/api/clear-all` | — | Wipe chats + reminders for the account. |
+| `GET`  | `/api/reminders?status=pending\|completed` | — | List reminders. |
+| `DELETE` | `/api/reminders/{id}` | — | Delete. |
+| `POST` | `/api/reminders/{id}/complete` | — | Mark complete. |
 
----
+All `/api` endpoints except `/api/onboard` require `Authorization: Bearer <token>`.
 
-## 🚀 Deployment & Setup
+## Tests
 
-### 1. Local Development
-1. Install dependencies: `pip install -r requirements.txt` (or via `./sidevenv/bin/pip`)
-2. Configure `.env`: Include your `GROQ_API_KEY`.
-3. Run Local Tests: `pytest tests/`
-4. Run Backend: `python main.py`
-5. Start Frontend: `cd sidekick-frontend && npm run dev`
-
-### 2. Cloud Deployment (Hugging Face / Docker) 🐳
-The project is built for **Hugging Face Spaces** using a multi-stage `Dockerfile`. 
-- **Internal Port**: 7860
-- **SDK**: Docker
-
----
-
-## 🤝 Clean Code Pledge
-Sidekick AI Pro is designed with absolute package imports (`app.xxx`), asynchronous database contexts, and rigorously decoupled logic gateways. No Celery. No Redis. Just pure, rapid Python performance.
-
-**Sidekick Pro (v9.0) — Engineered for massive scale, secured for privacy.** 🎓🛡️🏢🚀✨
+```
+pytest tests/
+```

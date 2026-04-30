@@ -1,1 +1,40 @@
 @import "tailwindcss";
+
+@theme {
+  --color-blush-50:  #fff5f7;
+  --color-blush-100: #ffe4ec;
+  --color-blush-200: #ffc9d9;
+  --color-blush-300: #ffa1bd;
+  --color-blush-400: #ff7099;
+  --color-blush-500: #f43f7c;
+  --color-blush-600: #d61f5f;
+  --color-blush-700: #ad104a;
+  --color-blush-800: #870c3c;
+  --color-blush-900: #5e0a2c;
+
+  --color-cream-50:  #fffaf6;
+  --color-cream-100: #fff1ea;
+  --color-cream-200: #ffe1d3;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #ffd6e3 0%, transparent 60%),
+    radial-gradient(1000px 500px at 110% 110%, #f3d8ff 0%, transparent 55%),
+    linear-gradient(180deg, #fff5f7 0%, #fff1ea 100%);
+  background-attachment: fixed;
+}
+
+@keyframes heart-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
+}
+.animate-heart-pulse { animation: heart-pulse 1.6s ease-in-out infinite; }
+
+/* nicer scrollbar in pink */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ffc9d9; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #ff7099; }

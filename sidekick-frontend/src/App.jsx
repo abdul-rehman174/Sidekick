@@ -1,632 +1,648 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Send, Sparkles, Bell, CheckCircle, Clock, ChevronLeft, ChevronRight, Trash2, History, MessageSquareCode, User as UserIcon, Heart, Lock, Camera, X } from 'lucide-react';
+import {
+  Send, Sparkles, Bell, CheckCircle, Clock, ChevronLeft, ChevronRight,
+  Trash2, History, User as UserIcon, Lock, X, Settings, Wand2, Heart,
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- v8.0 Professional Safety Boundary ---
-class ChatErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError(error) { return { hasError: true }; }
-  componentDidCatch(error, errorInfo) { console.error("Chat Render Error:", error, errorInfo); }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="p-10 text-center space-y-4">
-          <div className="text-red-400 font-bold italic">Babe, I'm a bit confused right now... 💔</div>
-          <button onClick={() => window.location.reload()} className="text-xs bg-pink-100 text-pink-600 px-4 py-2 rounded-xl">Refresh Chat</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const POLL_INTERVAL_MS = 5000;
+
+const authHeaders = () => {
+  const token = localStorage.getItem('sidekick_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const clearSession = () => {
+  localStorage.removeItem('sidekick_user');
+  localStorage.removeItem('sidekick_token');
+};
+
+const formatRemainingTime = (dueAt) => {
+  if (!dueAt) return 'Pending';
+  const due = new Date(dueAt.includes('Z') ? dueAt : dueAt + 'Z');
+  const diffMs = due - new Date();
+  if (diffMs <= 0) return 'Due now';
+  const mins = Math.floor(diffMs / 60000);
+  const hours = Math.floor(mins / 60);
+  return hours > 0 ? `${hours}h ${mins % 60}m` : `${mins}m`;
+};
 
 function App() {
+  const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState(null); // { id, username, botName, pin }
-  const [onboardingForm, setOnboardingForm] = useState({ username: '', botName: '', pin: '' });
   const [reminders, setReminders] = useState([]);
   const [historyReminders, setHistoryReminders] = useState([]);
+  const [viewMode, setViewMode] = useState('active');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [viewMode, setViewMode] = useState('active'); // 'active' or 'history'
-  const scrollRef = useRef(null);
-  const userRef = useRef(null); // ALWAYS current identity
-  const messageCountRef = useRef(0); // For sensory detection
-  const alreadySpokenRef = useRef(""); // To prevent the echo!
-  const buzzedRemindersRef = useRef(new Set()); // Instant Trigger Memory!
-  const isSendingRef = useRef(false); // 🫦 Absolute Sync Lock
   const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
-  const [personaTraining, setPersonaTraining] = useState(user?.persona_training || '');
+  const [persona, setPersona] = useState({ persona_name: '', behavior_profile: '', system_instruction: '' });
   const [activeNotification, setActiveNotification] = useState(null);
+  const [onboardingForm, setOnboardingForm] = useState({ username: '', personaName: '', pin: '' });
+  const [authError, setAuthError] = useState('');
+  const [compressing, setCompressing] = useState(false);
+  // TOKEN_COUNTER: session totals for debug UI — remove when done testing
+  const [sessionTokens, setSessionTokens] = useState({ prompt: 0, completion: 0, total: 0, calls: 0 });
+  const [lastCompressTokens, setLastCompressTokens] = useState(null);
 
-  // Helper to format remaining time
-  const formatRemainingTime = (dueAt) => {
-    if (!dueAt) return 'Pending...';
-    const due = new Date(dueAt.includes('Z') ? dueAt : dueAt + 'Z'); 
-    const now = new Date();
-    const diffMs = due - now;
-    if (diffMs <= 0) return '🔔 Due Now!';
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours > 0) return `${diffHours}h ${diffMins % 60}m left`;
-    return `${diffMins}m left`;
+  const scrollRef = useRef(null);
+  const mainRef = useRef(null);
+  const shouldAutoScrollRef = useRef(true);
+  const buzzedRemindersRef = useRef(new Set());
+
+  const handleMainScroll = () => {
+    const el = mainRef.current;
+    if (!el) return;
+    shouldAutoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
-  // 1. Initial Load & Identity Check
   useEffect(() => {
     const savedUser = localStorage.getItem('sidekick_user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-      setPersonaTraining(parsedUser.persona_training || '');
-      userRef.current = parsedUser; // Sync Ref
-      initApp(parsedUser);
+    const savedToken = localStorage.getItem('sidekick_token');
+    if (savedUser && savedToken) {
+      setUser(JSON.parse(savedUser));
     }
   }, []);
 
-  // 2. Polling Logic (Only if logged in)
+  useEffect(() => {
+    if (!user?.id) return;
+    loadInitialData();
+  }, [user?.id]);
+
   useEffect(() => {
     if (!user?.id) return;
     const interval = setInterval(() => {
       fetchReminders();
-      fetchChatHistoryPolling();
-    }, 1500);
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [user, viewMode]);
+  }, [user?.id, viewMode]);
 
-  const initApp = async (currentUser) => {
+  useEffect(() => {
+    if (shouldAutoScrollRef.current) {
+      scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  const handleAuthError = (err) => {
+    if (err.response?.status === 401) {
+      clearSession();
+      setUser(null);
+      return true;
+    }
+    return false;
+  };
+
+  const loadInitialData = async () => {
     try {
-      const token = localStorage.getItem('sidekick_token');
-      if (!token) {
-         setUser(null);
-         return;
-      }
-      // Fetch Chat History
-      // Fetch Chat History
-      const chatRes = await axios.get(`${API_BASE}/api/chat/history`, { 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      });
-      const formattedHistory = chatRes.data.reverse().map(msg => ({
+      const [chatRes, personaRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/chat/history`, { headers: authHeaders() }),
+        axios.get(`${API_BASE}/api/persona`, { headers: authHeaders() }),
+      ]);
+      setMessages(chatRes.data.reverse().map(msg => ({
         role: msg.role === 'user' ? 'user' : 'bot',
-        content: msg.content
-      }));
-      setMessages(formattedHistory);
-      messageCountRef.current = formattedHistory.length; // Initial Sync!
-      fetchReminders(currentUser.id, token); 
+        content: msg.content,
+      })));
+      setPersona({
+        persona_name: personaRes.data.persona_name || '',
+        behavior_profile: personaRes.data.behavior_profile || '',
+        system_instruction: personaRes.data.system_instruction || '',
+      });
+      fetchReminders();
     } catch (err) {
-      console.error("Initialization failed:", err);
-      // HARD RESET: If server restarted/DB reset, redirect to onboarding
-      if (err.response?.status === 404 || err.response?.status === 401) {
-        console.log("🔄 [Security] Session expired or DB reset. Redirecting to onboarding...");
-        localStorage.removeItem('sidekick_user');
-        localStorage.removeItem('sidekick_token');
-        setUser(null);
-      }
+      console.error('Initial load failed:', err);
+      handleAuthError(err);
     }
   };
 
-
-  const fetchChatHistoryPolling = async () => {
-    // 🫦 Flicker Shield: Lock polling while actively chatting
-    if (loading || isSendingRef.current) return;
-
-    const token = localStorage.getItem('sidekick_token');
-    if (!token) return;
-    try {
-      const chatRes = await axios.get(`${API_BASE}/api/chat/history`, { 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      });
-      const newHistory = chatRes.data.reverse().map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'bot',
-        content: msg.content
-      }));
-      
-      // 🫦 Final Race Condition Protection: Double Check before commit
-      if (!isSendingRef.current && !loading) {
-        setMessages(newHistory);
-        messageCountRef.current = newHistory.length;
-      }
-    } catch (err) { console.error("History polling err:", err); }
-  };
-
   const triggerSensoryAlert = (text) => {
-    // 🫦 Voice-Only Delivery: Focused and Professional
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.pitch = 1.1; 
-    utterance.rate = 1.0;
-    window.speechSynthesis.speak(utterance);
-
-    // 🫦 Visual Alert: Add pop-up notification
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
+    } catch {}
     setActiveNotification(text);
-    setTimeout(() => setActiveNotification(null), 5000); // Hide after 5 seconds
+    setTimeout(() => setActiveNotification(null), 5000);
   };
 
-  const fetchReminders = async (forcedId, forcedToken) => {
-    const token = forcedToken || localStorage.getItem('sidekick_token');
-    if (!token) return;
+  const fetchReminders = async () => {
     try {
-      const endpoint = viewMode === 'active' ? '/api/reminders?status=pending' : '/api/reminders?status=completed';
-      const res = await axios.get(`${API_BASE}${endpoint}`, { 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      });
-      
+      const status = viewMode === 'active' ? 'pending' : 'completed';
+      const res = await axios.get(`${API_BASE}/api/reminders?status=${status}`, { headers: authHeaders() });
       if (viewMode === 'active') {
         setReminders(res.data);
-        
-        // INSTANT TRIGGER: Check if any pending reminder is now 'Due Now'! 🫦🔔✨
         const now = new Date();
         res.data.forEach(r => {
           if (!r.due_at) return;
           const due = new Date(r.due_at.includes('Z') ? r.due_at : r.due_at + 'Z');
           if (due <= now && !buzzedRemindersRef.current.has(r.id)) {
-            // FIRE!
-            triggerSensoryAlert(`Babe! Time for your reminder: '${r.task}'! 😘`);
+            triggerSensoryAlert(`Reminder: ${r.task}`);
             buzzedRemindersRef.current.add(r.id);
-            
-            // Tell the server to mark it as completed so it moves to history
-            axios.post(`${API_BASE}/api/reminders/${r.id}/complete`, {}, { 
-              headers: { 'Authorization': `Bearer ${token}` } 
-            })
-              .then(() => {
-                 fetchReminders(); // Refresh sidebar instantly
-                 fetchChatHistoryPolling(); // Refresh history instantly
-              })
+            axios.post(`${API_BASE}/api/reminders/${r.id}/complete`, {}, { headers: authHeaders() })
+              .then(fetchReminders)
               .catch(() => {});
           }
         });
       } else {
         setHistoryReminders(res.data);
       }
-    } catch (err) { console.error("Polling error:", err); }
+    } catch (err) {
+      handleAuthError(err);
+    }
   };
 
-  // 3. User Handlers
   const handleOnboard = async (e) => {
     e.preventDefault();
-    if (!onboardingForm.username || !onboardingForm.botName || !onboardingForm.pin) return;
+    setAuthError('');
+    if (!onboardingForm.username || !onboardingForm.pin) return;
     setLoading(true);
     try {
-      const res = await axios.post(`${API_BASE}/api/onboard?username=${encodeURIComponent(onboardingForm.username)}&bot_name=${encodeURIComponent(onboardingForm.botName)}&pin=${onboardingForm.pin}`);
-      const newUser = { 
-        id: res.data.user_id, 
-        username: res.data.username, 
-        botName: res.data.bot_name,
-        pin: onboardingForm.pin 
+      const res = await axios.post(`${API_BASE}/api/onboard`, {
+        username: onboardingForm.username,
+        pin: onboardingForm.pin,
+        persona_name: onboardingForm.personaName || 'Sidekick',
+      });
+      const newUser = {
+        id: res.data.user_id,
+        username: res.data.username,
+        personaName: res.data.persona_name,
       };
       localStorage.setItem('sidekick_user', JSON.stringify(newUser));
       localStorage.setItem('sidekick_token', res.data.access_token);
       setUser(newUser);
-      userRef.current = newUser; // Instant Ref Sync
       setMessages([]);
-      setReminders([]);
-      setHistoryReminders([]);
-      
-      // INSTANT HISTORY: Load memory on join
-      initApp(newUser); 
-      
-      // Request Permissions & Enable Voice!
-      if (Notification.permission !== 'granted') {
+      if (Notification?.permission && Notification.permission !== 'granted') {
         Notification.requestPermission();
       }
-      // Speech activation gesture
-      const dummy = new SpeechSynthesisUtterance("Hi");
-      dummy.volume = 0;
-      window.speechSynthesis.speak(dummy);
-
-      setLoading(false);
     } catch (err) {
       if (err.response?.status === 401) {
-        alert("Wrong Key, Jan! 💔 This profile is locked. Use your own PIN!");
+        setAuthError('Wrong PIN for this username.');
+      } else if (err.response?.status === 422) {
+        setAuthError('Username is required (up to 40 chars) and PIN must be exactly 4 digits.');
       } else {
-        alert("Registration failed. Please try again, jan! 💔");
+        setAuthError('Registration failed. Try again.');
       }
-      setLoading(false);
-    }
-  };
-
-  const deleteReminder = async (id) => {
-    try {
-      const token = localStorage.getItem('sidekick_token');
-      await axios.delete(`${API_BASE}/api/reminders/${id}`, { 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      });
-      fetchReminders(); 
-    } catch (err) {
-      console.error("Delete error:", err);
-    }
-  };
-
-  const clearAllHistory = async () => {
-    if (!window.confirm("Jan, are you sure? This will wipe your private chats and reminders! 💔")) return;
-    try {
-      const token = localStorage.getItem('sidekick_token');
-      await axios.post(`${API_BASE}/api/clear-all`, {}, { 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      });
-      setMessages([]);
-      setReminders([]);
-      setHistoryReminders([]);
-    } catch (err) { console.error("Clear error:", err); }
-  };
-
-  const savePersona = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('sidekick_token');
-      const res = await axios.post(`${API_BASE}/api/user/persona`, 
-        { persona_training: personaTraining },
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
-      
-      const updatedUser = { ...user, persona_training: res.data.persona_training };
-      setUser(updatedUser);
-      localStorage.setItem('sidekick_user', JSON.stringify(updatedUser));
-      setIsPersonaModalOpen(false);
-      alert("Style locked in, babe! I'll behave just like that now. 🫦✨");
-    } catch (err) {
-      console.error("Persona save err:", err);
-      alert("Couldn't save the style, jan. 💔");
     } finally {
       setLoading(false);
     }
   };
 
   const sendMessage = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
+    e?.preventDefault();
     if (!input.trim() || loading) return;
-    if (!user?.id) {
-        alert("Hold on, jan! I'm still waking up. Give me a second... 🫦");
-        return;
-    }
-
+    shouldAutoScrollRef.current = true;
     const userMsg = { role: 'user', content: input };
     setMessages(prev => [...prev, userMsg]);
     const currentInput = input;
     setInput('');
     setLoading(true);
-    isSendingRef.current = true; // 🫦 ENGAGE LOCK: Absolute Stability Mode
 
     try {
-      const token = localStorage.getItem('sidekick_token');
-      const response = await axios.post(
+      const res = await axios.post(
         `${API_BASE}/api/chat`,
         { user_message: currentInput },
-        { headers: { 'Authorization': `Bearer ${token}` } }
+        { headers: authHeaders() },
       );
-      const botReply = response.data[user.bot_name] || response.data[user.botName] || response.data.reply || "Invalid response format";
-      setMessages(prev => [...prev, { role: 'bot', content: botReply }]);
-      
-      // INSTANT SYNC: If the AI created a reminder, refresh the sidebar immediately! 🫦🔔✨
-      if (response.data.new_reminder) {
-        fetchReminders();
+      // TOKEN_COUNTER: attach token usage to the bot message — remove when done testing
+      setMessages(prev => [...prev, { role: 'bot', content: res.data.reply, tokens: res.data.tokens }]);
+      if (res.data.tokens) {
+        setSessionTokens(s => ({
+          prompt: s.prompt + (res.data.tokens.prompt || 0),
+          completion: s.completion + (res.data.tokens.completion || 0),
+          total: s.total + (res.data.tokens.total || 0),
+          calls: s.calls + 1,
+        }));
       }
-    } catch (error) {
-      console.error("FULL CHAT ERROR:", error);
-      // HARD RESET on 404 (ID expired or DB reset)
-      if (error.response?.status === 404 || error.response?.status === 401) {
-        console.log("🔄 [Security Fix] Chat ID 404. Redirecting to onboarding...");
-        localStorage.removeItem('sidekick_user');
-        localStorage.removeItem('sidekick_token');
-        setUser(null);
-        return; 
-      }
-      setMessages(prev => [...prev, { role: 'bot', content: "Server error, jan. 💔 Check the browser console!" }]);
-    } finally { 
-      setLoading(false); 
-      isSendingRef.current = false; // 🫦 RELEASE LOCK: Back to normal polling
+      if (res.data.new_reminder) fetchReminders();
+    } catch (err) {
+      if (handleAuthError(err)) return;
+      const message = err.response?.data?.message || 'Something went wrong. Check the console.';
+      setMessages(prev => [...prev, { role: 'bot', content: message }]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Auto-scroll
-  useEffect(() => { 
-    if (messages.length > messageCountRef.current) {
-      scrollRef.current?.scrollIntoView({ behavior: "smooth" }); 
+  const deleteReminder = async (id) => {
+    try {
+      await axios.delete(`${API_BASE}/api/reminders/${id}`, { headers: authHeaders() });
+      fetchReminders();
+    } catch (err) {
+      handleAuthError(err);
     }
-  }, [messages]);
+  };
 
-  // --- ONBOARDING VIEW ---
+  const clearAllHistory = async () => {
+    if (!window.confirm('Wipe all chats and reminders for this account?')) return;
+    try {
+      await axios.post(`${API_BASE}/api/clear-all`, {}, { headers: authHeaders() });
+      setMessages([]);
+      setReminders([]);
+      setHistoryReminders([]);
+    } catch (err) {
+      handleAuthError(err);
+    }
+  };
+
+  const savePersona = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.put(`${API_BASE}/api/persona`, persona, { headers: authHeaders() });
+      setPersona({
+        persona_name: res.data.persona_name || '',
+        behavior_profile: res.data.behavior_profile || '',
+        system_instruction: res.data.system_instruction || '',
+      });
+      const updatedUser = { ...user, personaName: res.data.persona_name };
+      setUser(updatedUser);
+      localStorage.setItem('sidekick_user', JSON.stringify(updatedUser));
+      setIsPersonaModalOpen(false);
+    } catch (err) {
+      if (!handleAuthError(err)) alert('Could not save persona.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const compressPersona = async () => {
+    const raw = persona.behavior_profile.trim();
+    if (raw.length < 20) {
+      alert('Paste a longer chat sample first — at least a few messages.');
+      return;
+    }
+    if (!window.confirm('Compress the pasted chat into a compact style profile? This replaces the current text and saves tokens on every future message.')) return;
+    setCompressing(true);
+    try {
+      const res = await axios.post(
+        `${API_BASE}/api/persona/compress`,
+        { raw_chat: raw },
+        { headers: authHeaders() },
+      );
+      setPersona(p => ({ ...p, behavior_profile: res.data.compressed }));
+      // TOKEN_COUNTER: remember the compression cost — remove when done testing
+      if (res.data.tokens) setLastCompressTokens(res.data.tokens);
+    } catch (err) {
+      if (!handleAuthError(err)) {
+        const msg = err.response?.data?.message || 'Compression failed. Try again in a moment.';
+        alert(msg);
+      }
+    } finally {
+      setCompressing(false);
+    }
+  };
+
+  const logout = () => {
+    clearSession();
+    setUser(null);
+    setMessages([]);
+    setReminders([]);
+  };
+
   if (!user) {
     return (
-      <div className="h-screen w-screen bg-gradient-to-br from-rose-50 to-pink-100 flex items-center justify-center p-6 font-sans overflow-hidden">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-          className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-md w-full border border-pink-100 relative overflow-hidden"
+      <div className="h-screen w-screen bg-gradient-to-br from-blush-50 via-cream-50 to-purple-50 flex items-center justify-center p-6 font-sans">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white/90 backdrop-blur p-8 rounded-3xl shadow-xl max-w-md w-full border border-blush-100"
         >
-          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-             <Heart size={120} className="text-pink-500 fill-current" />
-          </div>
-          
           <div className="text-center space-y-2 mb-8">
-            <div className="inline-block p-4 bg-pink-50 rounded-2xl text-pink-500 mb-2">
-               <Lock size={32} />
+            <div className="inline-block p-4 bg-gradient-to-br from-blush-100 to-fuchsia-100 rounded-2xl text-blush-500 mb-2 shadow-sm">
+              <Heart size={28} className="fill-blush-500 animate-heart-pulse" />
             </div>
-            <h1 className="text-2xl font-black text-gray-800 tracking-tight">Enter the Vault</h1>
-            <p className="text-sm text-gray-500">Your private history is PIN-protected.</p>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blush-600 to-fuchsia-600 bg-clip-text text-transparent">Sidekick 💖</h1>
+            <p className="text-sm text-slate-500">Sign in with a username and PIN. New names register automatically.</p>
           </div>
-
           <form onSubmit={handleOnboard} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Username</label>
-              <input 
-                type="text" required maxLength={20}
-                placeholder="e.g. Abdul"
+            <Field label="Username">
+              <input
+                type="text" required maxLength={40}
                 value={onboardingForm.username}
-                onChange={e => setOnboardingForm({...onboardingForm, username: e.target.value})}
-                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:border-pink-300 transition-all text-gray-700 font-medium"
+                onChange={e => setOnboardingForm({ ...onboardingForm, username: e.target.value })}
+                className="field-input"
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Bot's Name</label>
-              <input 
-                type="text" required maxLength={20}
-                placeholder="e.g. Hafsa"
-                value={onboardingForm.botName}
-                onChange={e => setOnboardingForm({...onboardingForm, botName: e.target.value})}
-                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:border-pink-300 transition-all text-gray-700 font-medium"
+            </Field>
+            <Field label="Persona name (optional)">
+              <input
+                type="text" maxLength={40}
+                placeholder="e.g. Nova"
+                value={onboardingForm.personaName}
+                onChange={e => setOnboardingForm({ ...onboardingForm, personaName: e.target.value })}
+                className="field-input"
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">4-Digit Security PIN</label>
-              <input 
-                type="password" required maxLength={4} pattern="\d{4}"
+            </Field>
+            <Field label="4-digit PIN">
+              <input
+                type="password" required minLength={4} maxLength={4} pattern="\d{4}"
                 placeholder="••••"
                 value={onboardingForm.pin}
-                onChange={e => setOnboardingForm({...onboardingForm, pin: e.target.value.replace(/\D/g, '')})}
-                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:border-pink-300 transition-all text-center text-xl tracking-[1em] font-black"
+                onChange={e => setOnboardingForm({ ...onboardingForm, pin: e.target.value.replace(/\D/g, '') })}
+                className="field-input text-center text-xl tracking-[0.5em] font-bold"
               />
-            </div>
-            <button 
+            </Field>
+            {authError && <p className="text-sm text-red-500 text-center">{authError}</p>}
+            <button
               type="submit" disabled={loading}
-              className="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-pink-200 transition-all active:scale-95 disabled:opacity-50 mt-4"
+              className="w-full bg-gradient-to-r from-blush-500 to-fuchsia-500 hover:from-blush-600 hover:to-fuchsia-600 text-white font-semibold py-3.5 rounded-2xl shadow transition active:scale-[0.98] disabled:opacity-50"
             >
-              {loading ? "Waking her up..." : "UNLOCK CHAT"}
+              {loading ? 'Loading…' : 'Continue'}
             </button>
           </form>
-          <p className="text-[9px] text-center text-gray-400 mt-6 uppercase tracking-widest font-bold font-mono">End-to-End Privacy Locked 🔒</p>
         </motion.div>
+        <style>{`.field-input{width:100%;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;font-weight:500;color:#334155;outline:none}.field-input:focus{border-color:#ff7099;background:#fff}`}</style>
       </div>
     );
   }
 
-  // --- MAIN APP VIEW ---
-  const activeRemindersList = viewMode === 'active' ? reminders : historyReminders;
+  const listedReminders = viewMode === 'active' ? reminders : historyReminders;
 
   return (
     <>
-    <div className="flex h-screen bg-[#F7F9FB] font-sans text-gray-900 overflow-hidden text-[14px]">
-      <motion.aside
-        initial={false}
-        animate={{ width: isSidebarOpen ? 320 : 0, opacity: isSidebarOpen ? 1 : 0 }}
-        className="bg-white border-r border-gray-100 flex flex-col shadow-xl z-20 relative overflow-hidden"
-      >
-        <div className="p-4 border-b border-gray-50 flex items-center justify-between min-w-[320px]">
-          <div className="flex items-center gap-2 text-pink-600 font-bold">
-            <Bell size={18} />
-            <span className="capitalize">{viewMode} Tasks</span>
-          </div>
-          <div className="flex gap-1 bg-gray-50 p-1 rounded-lg">
-            <button onClick={() => setViewMode('active')} className={`p-1.5 rounded-md transition-all ${viewMode === 'active' ? 'bg-white shadow-sm text-pink-500' : 'text-gray-400'}`}>
-              <Clock size={16} />
-            </button>
-            <button onClick={() => setViewMode('history')} className={`p-1.5 rounded-md transition-all ${viewMode === 'history' ? 'bg-white shadow-sm text-pink-500' : 'text-gray-400'}`}>
-              <History size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-w-[320px]">
-          <AnimatePresence mode="popLayout">
-            {activeRemindersList.length === 0 ? (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-gray-400 text-xs text-center mt-10 italic flex flex-col items-center gap-2">
-                <MessageSquareCode size={40} className="text-gray-100" />
-                <p>{viewMode === 'active' ? 'No pending tasks...' : 'Task History'}</p>
-              </motion.div>
-            ) : (
-              activeRemindersList.map((r) => (
-                <motion.div layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} key={r.id}
-                  className={`p-3 rounded-xl border flex items-center gap-3 transition-all group shadow-sm ${viewMode === 'active' ? 'bg-gray-50 border-gray-100 hover:border-pink-200' : 'bg-green-50/30 border-green-100 grayscale-[0.5]'}`}
-                >
-                  <div className={`p-2 rounded-lg shadow-sm ${viewMode === 'active' ? 'bg-white text-pink-500' : 'bg-white text-green-500'}`}>
-                    {viewMode === 'active' ? <Clock size={14} /> : <CheckCircle size={14} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium transition-colors ${viewMode === 'active' ? 'text-gray-700' : 'text-gray-500 line-through'}`}>{r.task}</p>
-                    <p className={`text-[10px] font-bold tracking-tight uppercase ${viewMode === 'active' ? 'text-pink-400' : 'text-gray-400'}`}>
-                      {viewMode === 'active' ? formatRemainingTime(r.due_at) : 'Completed'}
-                    </p>
-                  </div>
-                  <button onClick={() => deleteReminder(r.id)} className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
-                    <Trash2 size={16} />
-                  </button>
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="p-4 border-t border-gray-50 min-w-[320px] bg-gray-50/50">
-           <div className="flex items-center gap-2 mb-4 px-2">
-              <div className="p-2 bg-white rounded-lg border border-gray-100 shadow-sm text-pink-400"><UserIcon size={14} /></div>
-              <div className="flex-1 truncate"><p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter leading-none">Logged in as</p><p className="text-xs font-bold text-gray-700 truncate">{user.username}</p></div>
-              <button 
-                onClick={() => { localStorage.removeItem('sidekick_user'); window.location.reload(); }}
-                className="text-[10px] font-bold text-pink-400 hover:text-pink-600 transition-colors bg-white px-2 py-1 rounded-md border border-gray-100"
-              >Log out</button>
-           </div>
-           
-           <button 
-             onClick={() => setIsPersonaModalOpen(true)}
-             className="w-full flex items-center justify-center gap-2 py-2 mb-2 text-xs font-bold text-pink-500 bg-pink-50/50 hover:bg-pink-100/50 rounded-xl transition-all border border-pink-100/50"
-           >
-             <Sparkles size={14} /> PERSONA MIRROR
-           </button>
-
-           <button onClick={clearAllHistory} className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-             <Trash2 size={14} /> RESET MY DATA
-           </button>
-        </div>
-      </motion.aside>
-
-      <div className="flex-1 flex flex-col relative min-w-0">
-        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="absolute left-4 top-20 z-30 p-1.5 bg-white rounded-full border border-gray-200 shadow-md hover:bg-gray-50 text-gray-400">
-          {isSidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-        </button>
-
-        <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 p-4 flex items-center justify-between z-10">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-tr from-pink-500 to-rose-400 p-2 rounded-xl shadow-md shadow-pink-100">
-              <Sparkles className="text-white" size={18} />
+      <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden text-sm">
+        <motion.aside
+          initial={false}
+          animate={{ width: isSidebarOpen ? 320 : 0, opacity: isSidebarOpen ? 1 : 0 }}
+          className="bg-white/80 backdrop-blur border-r border-blush-100 flex flex-col shadow-sm z-20 relative overflow-hidden"
+        >
+          <div className="p-4 border-b border-blush-100 flex items-center justify-between min-w-[320px]">
+            <div className="flex items-center gap-2 text-blush-600 font-semibold">
+              <Bell size={16} />
+              <span className="capitalize">{viewMode} tasks</span>
             </div>
-            <div><h1 className="text-base font-bold text-gray-800 capitalize tracking-tight font-black">{user.botName}</h1></div>
+            <div className="flex gap-1 bg-blush-50 p-1 rounded-lg">
+              <button onClick={() => setViewMode('active')} className={`p-1.5 rounded-md ${viewMode === 'active' ? 'bg-white shadow-sm text-blush-600' : 'text-slate-400'}`}>
+                <Clock size={14} />
+              </button>
+              <button onClick={() => setViewMode('history')} className={`p-1.5 rounded-md ${viewMode === 'history' ? 'bg-white shadow-sm text-blush-600' : 'text-slate-400'}`}>
+                <History size={14} />
+              </button>
+            </div>
           </div>
-        </header>
 
-        <main className="flex-1 overflow-y-auto p-6 space-y-6 bg-white/30">
-          <ChatErrorBoundary>
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 min-w-[320px]">
+            <AnimatePresence mode="popLayout">
+              {listedReminders.length === 0 ? (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-slate-400 text-xs text-center mt-12 italic">
+                  {viewMode === 'active' ? 'No pending tasks' : 'No completed tasks'}
+                </motion.div>
+              ) : (
+                listedReminders.map((r) => (
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
+                    key={r.id}
+                    className={`p-3 rounded-xl border flex items-center gap-3 group ${viewMode === 'active' ? 'bg-blush-50/60 border-blush-100 hover:border-blush-300' : 'bg-emerald-50/40 border-emerald-100'}`}
+                  >
+                    <div className={`p-2 rounded-lg bg-white ${viewMode === 'active' ? 'text-blush-500' : 'text-emerald-500'}`}>
+                      {viewMode === 'active' ? <Clock size={14} /> : <CheckCircle size={14} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-medium truncate ${viewMode === 'active' ? 'text-slate-700' : 'text-slate-500 line-through'}`}>{r.task}</p>
+                      <p className={`text-[11px] font-semibold uppercase tracking-wide ${viewMode === 'active' ? 'text-blush-500' : 'text-slate-400'}`}>
+                        {viewMode === 'active' ? formatRemainingTime(r.due_at) : 'Completed'}
+                      </p>
+                    </div>
+                    <button onClick={() => deleteReminder(r.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition">
+                      <Trash2 size={14} />
+                    </button>
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="p-4 border-t border-blush-100 min-w-[320px] bg-blush-50/40 space-y-2">
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <div className="p-2 bg-white rounded-lg border border-blush-100 text-blush-400"><UserIcon size={14} /></div>
+              <div className="flex-1 truncate">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Logged in</p>
+                <p className="text-sm font-semibold text-slate-700 truncate">{user.username}</p>
+              </div>
+              <button onClick={logout} className="text-xs font-semibold text-slate-500 hover:text-red-500 bg-white px-2 py-1 rounded-md border border-blush-100">
+                Log out
+              </button>
+            </div>
+            <button
+              onClick={() => setIsPersonaModalOpen(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-blush-600 bg-blush-100 hover:bg-blush-200 rounded-xl transition"
+            >
+              <Settings size={14} /> Persona settings
+            </button>
+            <button onClick={clearAllHistory} className="w-full flex items-center justify-center gap-2 py-2 text-xs font-semibold text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition">
+              <Trash2 size={14} /> Clear all data
+            </button>
+          </div>
+        </motion.aside>
+
+        <div className="flex-1 flex flex-col relative min-w-0">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="absolute left-4 top-20 z-30 p-1.5 bg-white rounded-full border border-blush-200 shadow-sm text-blush-400 hover:text-blush-600 transition">
+            {isSidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+          </button>
+
+          <header className="bg-white/70 backdrop-blur border-b border-blush-100 p-4 flex items-center gap-3">
+            <div className="bg-gradient-to-br from-blush-500 to-fuchsia-500 p-2 rounded-xl shadow-sm">
+              <Heart className="text-white fill-white" size={16} />
+            </div>
+            <h1 className="font-semibold text-blush-900 flex-1 truncate">{user.personaName}</h1>
+            {/* TOKEN_COUNTER: session-wide token totals — remove when done testing */}
+            <div className="text-[10px] font-mono text-slate-500 bg-blush-50 px-3 py-1.5 rounded-lg border border-blush-200" title="Session token totals">
+              <span className="font-bold text-slate-700">{sessionTokens.total.toLocaleString()}</span> tok
+              <span className="text-slate-300 mx-1.5">•</span>
+              in {sessionTokens.prompt.toLocaleString()}
+              <span className="text-slate-300 mx-1.5">•</span>
+              out {sessionTokens.completion.toLocaleString()}
+              <span className="text-slate-300 mx-1.5">•</span>
+              {sessionTokens.calls} msg
+            </div>
+          </header>
+
+          <main ref={mainRef} onScroll={handleMainScroll} className="flex-1 overflow-y-auto p-6 space-y-5">
             <AnimatePresence>
               {messages.length === 0 && !loading && (
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-4 max-w-sm mx-auto">
-                  <div className="p-4 bg-gray-50 rounded-full text-pink-400"><Heart size={32} fill="currentColor" /></div>
-                  <div><h2 className="text-lg font-bold text-gray-700 leading-tight">Ready for our chat, {user.username}?</h2><p className="text-sm text-gray-400 mt-1">Tell me everything...</p></div>
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-3 max-w-sm mx-auto pt-24">
+                  <div className="p-5 bg-gradient-to-br from-blush-100 to-fuchsia-100 rounded-full text-blush-500 shadow-sm">
+                    <Heart size={32} className="fill-blush-500 animate-heart-pulse" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-blush-900">missed u, {user.username} 💕</h2>
+                  <p className="text-sm text-slate-500">Tip: open <span className="font-semibold text-blush-600">Persona settings</span> to paste real chat samples for the bot to mirror.</p>
                 </div>
               )}
               {messages.map((msg, idx) => (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`p-4 rounded-2xl max-w-[85%] shadow-sm ${msg.role === 'user' ? 'bg-pink-600 text-white rounded-tr-none shadow-pink-200' : 'bg-white text-gray-800 rounded-tl-none border border-gray-100 shadow-pink-50/50'}`}>
-                    <div className="prose prose-sm max-w-none text-inherit break-words leading-relaxed font-medium">
-                      <ReactMarkdown>{msg.content || (msg.role === 'bot' ? '...' : '')}</ReactMarkdown>
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                  key={idx}
+                  className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                >
+                  <div className={`p-3.5 rounded-2xl max-w-[80%] shadow-sm ${msg.role === 'user' ? 'bg-gradient-to-br from-blush-500 to-fuchsia-500 text-white rounded-tr-sm' : 'bg-white/90 text-slate-800 rounded-tl-sm border border-blush-100'}`}>
+                    <div className="prose prose-sm max-w-none text-inherit break-words leading-relaxed">
+                      <ReactMarkdown>{msg.content || '…'}</ReactMarkdown>
                     </div>
                   </div>
+                  {/* TOKEN_COUNTER: per-message token breakdown — remove when done testing */}
+                  {msg.role === 'bot' && msg.tokens && (
+                    <div className="text-[10px] font-mono text-slate-400 mt-1 ml-1">
+                      in {msg.tokens.prompt} · out {msg.tokens.completion} · total {msg.tokens.total}
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
-          </ChatErrorBoundary>
-          {loading && (
-            <div className="flex justify-start">
-               <div className="bg-white p-3 px-4 rounded-2xl border border-gray-100 flex gap-1 shadow-sm">
-                 <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"></span>
-                 <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                 <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-               </div>
-            </div>
-          )}
-          <div ref={scrollRef} />
-        </main>
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-white p-3 px-4 rounded-2xl border border-blush-100 flex gap-1 shadow-sm">
+                  <span className="w-1.5 h-1.5 bg-blush-400 rounded-full animate-bounce"></span>
+                  <span className="w-1.5 h-1.5 bg-blush-400 rounded-full animate-bounce [animation-delay:0.15s]"></span>
+                  <span className="w-1.5 h-1.5 bg-blush-400 rounded-full animate-bounce [animation-delay:0.3s]"></span>
+                </div>
+              </div>
+            )}
+            <div ref={scrollRef} />
+          </main>
 
-        <footer className="p-4 bg-white border-t border-gray-100">
-          <form onSubmit={sendMessage} className="max-w-4xl mx-auto flex gap-3 bg-gray-50 p-2 rounded-2xl border border-gray-200 shadow-inner">
-            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Message ${user.botName}...`}
-              className="flex-1 bg-transparent p-2 pl-4 focus:outline-none text-gray-700 placeholder:text-gray-300 font-medium"
-            />
-            <button type="submit" disabled={!input.trim() || loading} className="bg-pink-600 text-white p-3 rounded-xl hover:bg-pink-700 transition-all shadow-md disabled:opacity-40">
-              {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={18} />}
-            </button>
-          </form>
-          <p className="text-[9px] text-center text-gray-300 mt-2 uppercase tracking-tighter font-bold font-mono">Private Vault Locked • User: {user.username}</p>
-        </footer>
+          <footer className="p-4 bg-white/70 backdrop-blur border-t border-blush-100">
+            <form onSubmit={sendMessage} className="max-w-4xl mx-auto flex gap-2 bg-white p-2 rounded-2xl border border-blush-200 shadow-sm focus-within:border-blush-400">
+              <input
+                type="text" value={input} onChange={e => setInput(e.target.value)}
+                placeholder={`Message ${user.personaName}…`} maxLength={4000}
+                className="flex-1 bg-transparent p-2 pl-3 focus:outline-none text-slate-700 placeholder:text-slate-400"
+              />
+              <button type="submit" disabled={!input.trim() || loading} className="bg-gradient-to-br from-blush-500 to-fuchsia-500 hover:from-blush-600 hover:to-fuchsia-600 text-white p-2.5 rounded-xl shadow-sm transition disabled:opacity-40">
+                {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={16} />}
+              </button>
+            </form>
+          </footer>
+        </div>
       </div>
-    </div>
-    
-    {/* Persona Mirroring Modal */}
-    <AnimatePresence>
-      {isPersonaModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setIsPersonaModalOpen(false)}
-            className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
-          />
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: 20 }} 
-            animate={{ opacity: 1, scale: 1, y: 0 }} 
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden relative border border-pink-100"
-          >
-            <div className="p-8 space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-pink-50 rounded-2xl text-pink-500">
-                    <Sparkles size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-gray-800 tracking-tight">Persona Mirror</h2>
-                    <p className="text-xs text-gray-400">Train me with real chat patterns</p>
-                  </div>
-                </div>
-                <button onClick={() => setIsPersonaModalOpen(false)} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
-                  <X size={20} className="text-gray-400" />
-                </button>
-              </div>
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2">Paste Chat Samples</label>
-                  <textarea 
-                    value={personaTraining}
-                    onChange={(e) => setPersonaTraining(e.target.value)}
-                    placeholder="Paste messages from the person you want me to mimic... (e.g. 'hey bae', 'hru?', 'miss u sm')"
-                    className="w-full h-64 p-5 bg-gray-50 border border-gray-100 rounded-[1.5rem] focus:outline-none focus:border-pink-300 transition-all text-sm text-gray-700 font-medium resize-none leading-relaxed"
+      <AnimatePresence>
+        {isPersonaModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsPersonaModalOpen(false)}
+              className="absolute inset-0 bg-blush-900/30 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden relative border border-blush-100 z-10"
+            >
+              <div className="p-7 space-y-5 max-h-[85vh] overflow-y-auto">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-gradient-to-br from-blush-100 to-fuchsia-100 rounded-xl text-blush-500"><Heart size={20} className="fill-blush-500" /></div>
+                    <div>
+                      <h2 className="text-lg font-bold text-blush-900">Persona settings</h2>
+                      <p className="text-xs text-slate-500">Shape your sidekick's voice & vibe 💕</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsPersonaModalOpen(false)} className="p-2 hover:bg-blush-50 rounded-full">
+                    <X size={18} className="text-slate-400" />
+                  </button>
+                </div>
+
+                <Field label="Persona name">
+                  <input
+                    type="text" maxLength={40}
+                    value={persona.persona_name}
+                    onChange={e => setPersona({ ...persona, persona_name: e.target.value })}
+                    className="field-input"
+                    placeholder="Who the bot is pretending to be"
                   />
-                  <p className="text-[10px] text-gray-400 italic px-2">
-                    Tip: The more messages you paste, the more accurate my vibe will be! ✨
-                  </p>
-                </div>
+                </Field>
 
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => { setPersonaTraining(''); }}
-                    className="flex-1 py-3 text-xs font-bold text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-xl transition-all"
+                <Field label={`Behavior samples (${persona.behavior_profile.length}/50000)`}>
+                  <textarea
+                    value={persona.behavior_profile}
+                    onChange={e => setPersona({ ...persona, behavior_profile: e.target.value.slice(0, 50000) })}
+                    placeholder="Paste real chat messages from the person you want the bot to mimic. Raw WhatsApp exports work — timestamps and the other speaker's lines will be ignored by the compressor."
+                    className="field-input h-48 resize-none font-mono text-xs leading-relaxed"
+                  />
+                  <button
+                    type="button"
+                    onClick={compressPersona}
+                    disabled={compressing || persona.behavior_profile.trim().length < 20}
+                    className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-blush-600 bg-blush-100 hover:bg-blush-200 rounded-xl transition disabled:opacity-50"
                   >
-                    RESET DEFAULT
+                    <Wand2 size={14} />
+                    {compressing ? 'Compressing…' : 'Compress with AI (saves tokens, keeps realism)'}
                   </button>
-                  <button 
-                    onClick={savePersona}
-                    disabled={loading}
-                    className="flex-[2] py-4 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-2xl shadow-lg shadow-pink-200 transition-all active:scale-95 disabled:opacity-50"
+                  {/* TOKEN_COUNTER: last compression cost — remove when done testing */}
+                  {lastCompressTokens && (
+                    <div className="text-[10px] font-mono text-slate-400 mt-2 px-1">
+                      Last compression: in {lastCompressTokens.prompt} · out {lastCompressTokens.completion} · total {lastCompressTokens.total} tokens
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-400 leading-relaxed px-1 pt-1">
+                    Click after pasting raw chat. One-time AI call distills the voice into a compact style card + representative messages — every future chat becomes much cheaper without losing authenticity.
+                  </p>
+                </Field>
+
+                <Field label={`System instruction (${persona.system_instruction.length}/4000)`}>
+                  <textarea
+                    value={persona.system_instruction}
+                    onChange={e => setPersona({ ...persona, system_instruction: e.target.value.slice(0, 4000) })}
+                    placeholder="Extra instructions layered on top of the voice — e.g. 'respond in Roman Urdu', 'stay playful but never crude', 'act jealous if I mention other people'."
+                    className="field-input h-28 resize-none text-sm leading-relaxed"
+                  />
+                </Field>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setPersona({ ...persona, behavior_profile: '', system_instruction: '' })}
+                    className="flex-1 py-3 text-xs font-semibold text-slate-600 bg-blush-50 hover:bg-blush-100 rounded-xl transition"
                   >
-                    {loading ? "Locking it in..." : "SAVE & APPLY STYLE 🫦"}
+                    Clear behavior + instruction
+                  </button>
+                  <button
+                    onClick={savePersona} disabled={loading}
+                    className="flex-[2] py-3 bg-gradient-to-r from-blush-500 to-fuchsia-500 hover:from-blush-600 hover:to-fuchsia-600 text-white font-semibold rounded-xl shadow transition active:scale-[0.98] disabled:opacity-50"
+                  >
+                    {loading ? 'Saving…' : 'Save persona'}
                   </button>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {activeNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: -30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-sm"
+          >
+            <div className="bg-gradient-to-r from-blush-500 to-fuchsia-500 p-4 rounded-2xl shadow-2xl flex items-center gap-3 text-white">
+              <div className="p-2 bg-white/20 rounded-lg"><Bell className="animate-pulse" size={20} /></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Reminder</p>
+                <p className="text-sm font-semibold truncate">{activeNotification}</p>
+              </div>
+              <button onClick={() => setActiveNotification(null)} className="p-1 hover:bg-white/10 rounded-full">
+                <X size={16} />
+              </button>
             </div>
           </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
 
-    {/* Visual Reminder Notification Layer */}
-    <AnimatePresence>
-      {activeNotification && (
-        <motion.div 
-          initial={{ opacity: 0, y: -50, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-sm"
-        >
-          <div className="bg-gradient-to-r from-pink-600 to-rose-500 p-4 rounded-2xl shadow-2xl border border-white/20 flex items-center gap-4 text-white">
-            <div className="p-2 bg-white/20 rounded-xl">
-              <Bell className="animate-bounce" size={24} />
-            </div>
-            <div className="flex-1">
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Reminder Alert! 🫦</p>
-              <p className="text-sm font-bold leading-tight">{activeNotification.replace(/Babe! Time for your reminder: '(.*)'! 😘/, '$1')}</p>
-            </div>
-            <button onClick={() => setActiveNotification(null)} className="p-1 hover:bg-white/10 rounded-full">
-              <X size={18} />
-            </button>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+      <style>{`.field-input{width:100%;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;font-weight:500;color:#334155;outline:none;transition:all .15s}.field-input:focus{border-color:#ff7099;background:#fff}`}</style>
     </>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-1">{label}</label>
+      {children}
+    </div>
   );
 }
 
