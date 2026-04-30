@@ -340,14 +340,24 @@ function App() {
           <div className="flex bg-blush-50 p-1 rounded-xl mb-5">
             <button
               type="button"
-              onClick={() => { setAuthMode('login'); setAuthError(''); setAuthNotice(''); }}
+              onClick={() => {
+                setAuthMode('login');
+                setAuthError('');
+                setAuthNotice('');
+                setOnboardingForm({ username: '', personaName: '', password: '' });
+              }}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${authMode === 'login' ? 'bg-white text-blush-600 shadow-sm' : 'text-slate-500'}`}
             >
               Sign in
             </button>
             <button
               type="button"
-              onClick={() => { setAuthMode('register'); setAuthError(''); setAuthNotice(''); }}
+              onClick={() => {
+                setAuthMode('register');
+                setAuthError('');
+                setAuthNotice('');
+                setOnboardingForm({ username: '', personaName: '', password: '' });
+              }}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${authMode === 'register' ? 'bg-white text-blush-600 shadow-sm' : 'text-slate-500'}`}
             >
               Register
