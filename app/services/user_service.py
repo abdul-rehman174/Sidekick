@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -47,6 +47,11 @@ class UserService:
     async def clear_all_data(db: AsyncSession, user_id: int) -> None:
         await db.execute(delete(models.ChatLog).where(models.ChatLog.user_id == user_id))
         await db.execute(delete(models.Reminder).where(models.Reminder.user_id == user_id))
+        await db.execute(
+            update(models.User)
+            .where(models.User.id == user_id)
+            .values(chat_summary=None, summary_message_count=0)
+        )
         await db.commit()
 
     @staticmethod
