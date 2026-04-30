@@ -17,7 +17,14 @@ logger = logging.getLogger(__name__)
 HISTORY_TURNS = 6
 
 REMINDER_INTENT_RE = re.compile(
-    r"\b(remind|reminder|alarm|timer|minute|min|hour|yaad|notify|later|after\s+\d)\b",
+    r"\b("
+    r"remind(?:er)?|alarm|timer|notify|later|"
+    r"minutes?|mins?|mints?|"
+    r"hours?|ghant[aey]|"
+    r"yaa?d|"
+    r"after\s+\d|baad|"
+    r"k[ae]rwa\w*|dila\w*"
+    r")\b",
     re.IGNORECASE,
 )
 
