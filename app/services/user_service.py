@@ -1,39 +1,46 @@
+from fastapi import HTTPException
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app import models
-from app.auth.security import hash_pin, verify_pin
+from app.auth.security import hash_password, verify_password
 
 
 class UserService:
     @staticmethod
-    async def authenticate_or_register(
+    async def register_user(
         db: AsyncSession,
         username: str,
-        pin: str,
+        password: str,
         persona_name: str,
-    ) -> models.User | None:
-        """Register a new user, or log an existing user in if the PIN matches.
+    ) -> models.User:
+        """Create a new account. Raises 409 if the username is already taken."""
+        result = await db.execute(select(models.User).filter(models.User.username == username))
+        if result.scalars().first() is not None:
+            raise HTTPException(status_code=409, detail="Username is already taken.")
 
-        Returns None when the username exists but the PIN is wrong.
-        """
+        user = models.User(
+            username=username,
+            pin_hash=hash_password(password),
+            persona_name=persona_name,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return user
+
+    @staticmethod
+    async def authenticate_user(
+        db: AsyncSession,
+        username: str,
+        password: str,
+    ) -> models.User:
+        """Look up a user and verify their password. Raises 401 on either miss."""
         result = await db.execute(select(models.User).filter(models.User.username == username))
         user = result.scalars().first()
-
-        if user is None:
-            user = models.User(
-                username=username,
-                pin_hash=hash_pin(pin),
-                persona_name=persona_name,
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-            return user
-
-        if not verify_pin(pin, user.pin_hash):
-            return None
+        if user is None or not verify_password(password, user.pin_hash):
+            raise HTTPException(status_code=401, detail="Invalid username or password.")
         return user
 
     @staticmethod

@@ -42,7 +42,8 @@ function App() {
   const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
   const [persona, setPersona] = useState({ persona_name: '', behavior_profile: '', system_instruction: '' });
   const [activeNotification, setActiveNotification] = useState(null);
-  const [onboardingForm, setOnboardingForm] = useState({ username: '', personaName: '', pin: '' });
+  const [onboardingForm, setOnboardingForm] = useState({ username: '', personaName: '', password: '' });
+  const [authMode, setAuthMode] = useState('login');
   const [authError, setAuthError] = useState('');
   const [compressing, setCompressing] = useState(false);
   // TOKEN_COUNTER: session totals for debug UI — remove when done testing
@@ -156,14 +157,21 @@ function App() {
   const handleOnboard = async (e) => {
     e.preventDefault();
     setAuthError('');
-    if (!onboardingForm.username || !onboardingForm.pin) return;
+    if (!onboardingForm.username || !onboardingForm.password) return;
     setLoading(true);
     try {
-      const res = await axios.post(`${API_BASE}/api/onboard`, {
-        username: onboardingForm.username,
-        pin: onboardingForm.pin,
-        persona_name: onboardingForm.personaName || 'Sidekick',
-      });
+      const endpoint = authMode === 'register' ? '/api/register' : '/api/login';
+      const body = authMode === 'register'
+        ? {
+            username: onboardingForm.username,
+            password: onboardingForm.password,
+            persona_name: onboardingForm.personaName || 'Sidekick',
+          }
+        : {
+            username: onboardingForm.username,
+            password: onboardingForm.password,
+          };
+      const res = await axios.post(`${API_BASE}${endpoint}`, body);
       const newUser = {
         id: res.data.user_id,
         username: res.data.username,
@@ -177,12 +185,15 @@ function App() {
         Notification.requestPermission();
       }
     } catch (err) {
-      if (err.response?.status === 401) {
-        setAuthError('Wrong PIN for this username.');
-      } else if (err.response?.status === 422) {
-        setAuthError('Username is required (up to 40 chars) and PIN must be exactly 4 digits.');
+      const status = err.response?.status;
+      if (status === 401) {
+        setAuthError('Wrong username or password.');
+      } else if (status === 409) {
+        setAuthError('That username is already taken — try logging in instead.');
+      } else if (status === 422) {
+        setAuthError('Username is required and password must be at least 8 characters.');
       } else {
-        setAuthError('Registration failed. Try again.');
+        setAuthError(authMode === 'register' ? 'Registration failed. Try again.' : 'Login failed. Try again.');
       }
     } finally {
       setLoading(false);
@@ -313,8 +324,26 @@ function App() {
               <Heart size={28} className="fill-blush-500 animate-heart-pulse" />
             </div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-blush-600 to-fuchsia-600 bg-clip-text text-transparent">Sidekick 💖</h1>
-            <p className="text-sm text-slate-500">Sign in with a username and PIN. New names register automatically.</p>
+            <p className="text-sm text-slate-500">{authMode === 'register' ? 'Create an account to save your chats.' : 'Welcome back, jaan.'}</p>
           </div>
+
+          <div className="flex bg-blush-50 p-1 rounded-xl mb-5">
+            <button
+              type="button"
+              onClick={() => { setAuthMode('login'); setAuthError(''); }}
+              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${authMode === 'login' ? 'bg-white text-blush-600 shadow-sm' : 'text-slate-500'}`}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('register'); setAuthError(''); }}
+              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${authMode === 'register' ? 'bg-white text-blush-600 shadow-sm' : 'text-slate-500'}`}
+            >
+              Register
+            </button>
+          </div>
+
           <form onSubmit={handleOnboard} className="space-y-4">
             <Field label="Username">
               <input
@@ -324,22 +353,24 @@ function App() {
                 className="field-input"
               />
             </Field>
-            <Field label="Persona name (optional)">
+            {authMode === 'register' && (
+              <Field label="Persona name (optional)">
+                <input
+                  type="text" maxLength={40}
+                  placeholder="e.g. Nova"
+                  value={onboardingForm.personaName}
+                  onChange={e => setOnboardingForm({ ...onboardingForm, personaName: e.target.value })}
+                  className="field-input"
+                />
+              </Field>
+            )}
+            <Field label="Password">
               <input
-                type="text" maxLength={40}
-                placeholder="e.g. Nova"
-                value={onboardingForm.personaName}
-                onChange={e => setOnboardingForm({ ...onboardingForm, personaName: e.target.value })}
+                type="password" required minLength={8} maxLength={128}
+                placeholder="at least 8 characters"
+                value={onboardingForm.password}
+                onChange={e => setOnboardingForm({ ...onboardingForm, password: e.target.value })}
                 className="field-input"
-              />
-            </Field>
-            <Field label="4-digit PIN">
-              <input
-                type="password" required minLength={4} maxLength={4} pattern="\d{4}"
-                placeholder="••••"
-                value={onboardingForm.pin}
-                onChange={e => setOnboardingForm({ ...onboardingForm, pin: e.target.value.replace(/\D/g, '') })}
-                className="field-input text-center text-xl tracking-[0.5em] font-bold"
               />
             </Field>
             {authError && <p className="text-sm text-red-500 text-center">{authError}</p>}
@@ -347,7 +378,7 @@ function App() {
               type="submit" disabled={loading}
               className="w-full bg-gradient-to-r from-blush-500 to-fuchsia-500 hover:from-blush-600 hover:to-fuchsia-600 text-white font-semibold py-3.5 rounded-2xl shadow transition active:scale-[0.98] disabled:opacity-50"
             >
-              {loading ? 'Loading…' : 'Continue'}
+              {loading ? 'Loading…' : (authMode === 'register' ? 'Create account' : 'Sign in')}
             </button>
           </form>
         </motion.div>

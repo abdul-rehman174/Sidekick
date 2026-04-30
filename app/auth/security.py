@@ -1,12 +1,14 @@
 import bcrypt
 
 
-def hash_pin(pin: str) -> str:
-    return bcrypt.hashpw(pin.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+def hash_password(password: str) -> str:
+    # bcrypt has a 72-byte limit on the input; truncate defensively for
+    # very long passwords so hashpw doesn't raise.
+    return bcrypt.hashpw(password.encode("utf-8")[:72], bcrypt.gensalt()).decode("utf-8")
 
 
-def verify_pin(pin: str, pin_hash: str) -> bool:
+def verify_password(password: str, password_hash: str) -> bool:
     try:
-        return bcrypt.checkpw(pin.encode("utf-8"), pin_hash.encode("utf-8"))
+        return bcrypt.checkpw(password.encode("utf-8")[:72], password_hash.encode("utf-8"))
     except ValueError:
         return False

@@ -1,16 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwt_handler import create_access_token, get_current_user
 from app.database import get_db
 from app.models import User
 from app.schemas import (
+    AuthResponse,
     CompressPersonaRequest,
     CompressPersonaResponse,
-    OnboardRequest,
-    OnboardResponse,
+    LoginRequest,
     PersonaResponse,
     PersonaUpdateRequest,
+    RegisterRequest,
 )
 from app.services.ai_service import AIService
 from app.services.user_service import UserService
@@ -18,20 +19,27 @@ from app.services.user_service import UserService
 router = APIRouter(prefix="/api")
 
 
-@router.post("/onboard", response_model=OnboardResponse)
-async def onboard_user(payload: OnboardRequest, db: AsyncSession = Depends(get_db)):
-    user = await UserService.authenticate_or_register(
-        db, payload.username, payload.pin, payload.persona_name
-    )
-    if user is None:
-        raise HTTPException(status_code=401, detail="Invalid PIN for existing username.")
-
-    return OnboardResponse(
+def _auth_response(user: User) -> AuthResponse:
+    return AuthResponse(
         access_token=create_access_token({"sub": str(user.id)}),
         user_id=user.id,
         username=user.username,
         persona_name=user.persona_name,
     )
+
+
+@router.post("/register", response_model=AuthResponse, status_code=201)
+async def register_user(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    user = await UserService.register_user(
+        db, payload.username, payload.password, payload.persona_name
+    )
+    return _auth_response(user)
+
+
+@router.post("/login", response_model=AuthResponse)
+async def login_user(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+    user = await UserService.authenticate_user(db, payload.username, payload.password)
+    return _auth_response(user)
 
 
 @router.get("/persona", response_model=PersonaResponse)

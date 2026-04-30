@@ -3,17 +3,22 @@ from typing import Optional
 from pydantic import BaseModel, Field, constr
 
 
-PinStr = constr(pattern=r"^\d{4}$")
+PasswordStr = constr(min_length=8, max_length=128)
 UsernameStr = constr(strip_whitespace=True, min_length=1, max_length=40)
 
 
-class OnboardRequest(BaseModel):
+class RegisterRequest(BaseModel):
     username: UsernameStr
-    pin: PinStr
+    password: PasswordStr
     persona_name: str = Field(default="Sidekick", max_length=40, min_length=1)
 
 
-class OnboardResponse(BaseModel):
+class LoginRequest(BaseModel):
+    username: UsernameStr
+    password: PasswordStr
+
+
+class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user_id: int
