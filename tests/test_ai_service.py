@@ -10,6 +10,8 @@ def make_user(**overrides):
         persona_name="Sidekick",
         behavior_profile=None,
         system_instruction=None,
+        chat_summary=None,
+        summary_message_count=0,
     )
     base.update(overrides)
     return SimpleNamespace(**base)
@@ -90,3 +92,13 @@ def test_build_messages_omits_behavior_section_when_empty():
     system_content = messages[0]["content"]
     assert "VOICE PROFILE" not in system_content
     assert "ADDITIONAL USER INSTRUCTIONS" not in system_content
+    assert "PREVIOUS CONTEXT" not in system_content
+
+
+def test_build_messages_injects_chat_summary():
+    user = make_user(chat_summary="user said his name is faizan and likes mango shake")
+    messages = AIService._build_messages(user, history=[], user_message="hi")
+
+    system_content = messages[0]["content"]
+    assert "PREVIOUS CONTEXT" in system_content
+    assert "mango shake" in system_content

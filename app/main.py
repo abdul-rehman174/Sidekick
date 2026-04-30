@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from app import models
 from app.config import settings
@@ -20,10 +21,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Columns added after the initial schema. Listed here so existing DBs
+# (Supabase + local sqlite) get them on startup without dropping data.
+_SOFT_MIGRATIONS = [
+    ("users", "chat_summary", "TEXT"),
+    ("users", "summary_message_count", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+
+async def _apply_soft_migrations(conn) -> None:
+    dialect = conn.dialect.name
+    for table, column, ddl in _SOFT_MIGRATIONS:
+        try:
+            if dialect == "postgresql":
+                await conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {ddl}'))
+            else:
+                await conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} {ddl}'))
+        except Exception as e:
+            # SQLite raises if the column already exists; ignore silently.
+            logger.debug("soft-migration skipped for %s.%s: %s", table, column, e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(models.Base.metadata.create_all)
+        await _apply_soft_migrations(conn)
     logger.info("Database schema ready.")
     yield
 

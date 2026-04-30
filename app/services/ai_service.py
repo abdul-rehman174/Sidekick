@@ -3,6 +3,7 @@ import logging
 import re
 
 from groq import AsyncGroq
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -15,6 +16,13 @@ from app.services.reminder_service import ReminderService
 logger = logging.getLogger(__name__)
 
 HISTORY_TURNS = 6
+SUMMARY_REFRESH_EVERY = 10
+SUMMARY_MAX_TOKENS = 220
+
+SUMMARY_PROMPT = """Summarise this chat history into a compact prose paragraph (max 150 words) that captures everything {persona_name} should remember about {username} and the relationship so far. Cover: ongoing topics, plans/promises made, the emotional tone (flirty, fighting, sweet, distant, etc.), names/places/details {username} has mentioned, and any pending things {persona_name} agreed to. No headers, no bullet points, no preamble — just one dense paragraph.
+
+CHAT:
+{chat}"""
 
 REMINDER_INTENT_RE = re.compile(
     r"\b("
@@ -112,6 +120,9 @@ class AIService:
             if profile:
                 parts.append(f"VOICE PROFILE:\n{profile}")
 
+        if user.chat_summary:
+            parts.append(f"PREVIOUS CONTEXT (older chat, summary):\n{user.chat_summary}")
+
         parts.append("Reply in-character.")
 
         messages: list[dict] = [{"role": "system", "content": "\n\n".join(parts)}]
@@ -128,6 +139,63 @@ class AIService:
         text = FUNCTION_LEAK_RE.sub("", text)
         text = PYTHON_TAG_LEAK_RE.sub("", text)
         return text.strip()
+
+    @staticmethod
+    async def _generate_summary(chat_text: str, persona_name: str, username: str) -> str | None:
+        prompt = SUMMARY_PROMPT.format(
+            persona_name=persona_name or "the bot",
+            username=username,
+            chat=chat_text,
+        )
+        try:
+            completion = await AIService.client.chat.completions.create(
+                model=settings.GROQ_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=SUMMARY_MAX_TOKENS,
+            )
+        except Exception:
+            logger.exception("Summary generation failed (non-fatal)")
+            return None
+        text = (completion.choices[0].message.content or "").strip()
+        return text or None
+
+    @staticmethod
+    async def _maybe_refresh_summary(db: AsyncSession, user: models.User) -> None:
+        """If the user has at least HISTORY_TURNS + SUMMARY_REFRESH_EVERY chat
+        rows and we haven't summarised this batch yet, regenerate the summary."""
+        total_result = await db.execute(
+            select(func.count(models.ChatLog.id)).filter(models.ChatLog.user_id == user.id)
+        )
+        total = total_result.scalar_one()
+        if total < HISTORY_TURNS + SUMMARY_REFRESH_EVERY:
+            return
+        already = user.summary_message_count or 0
+        if total - already < SUMMARY_REFRESH_EVERY:
+            return
+
+        older_count = total - HISTORY_TURNS
+        older_result = await db.execute(
+            select(models.ChatLog)
+            .filter(models.ChatLog.user_id == user.id)
+            .order_by(models.ChatLog.id.asc())
+            .limit(older_count)
+        )
+        older = list(older_result.scalars().all())
+        if not older:
+            return
+
+        chat_text = "\n".join(
+            f"{'user' if m.role == 'user' else (user.persona_name or 'bot')}: {m.content.strip()}"
+            for m in older
+            if m.content
+        )
+        summary = await AIService._generate_summary(chat_text, user.persona_name, user.username)
+        if summary is None:
+            return
+        user.chat_summary = summary
+        user.summary_message_count = total
+        await db.commit()
 
     @staticmethod
     async def _handle_tool_calls(db: AsyncSession, user_id: int, tool_calls) -> tuple[dict | None, bool]:
@@ -211,6 +279,13 @@ class AIService:
             )
         )
         await db.commit()
+
+        # Best-effort rolling summary so older context survives the
+        # HISTORY_TURNS window. Failures here never break the chat reply.
+        try:
+            await AIService._maybe_refresh_summary(db, user)
+        except Exception:
+            logger.exception("Summary refresh failed (non-fatal)")
 
         # TOKEN_COUNTER: usage dict for debug UI — remove when done testing
         return {

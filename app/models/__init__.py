@@ -21,6 +21,9 @@ class User(Base):
     behavior_profile = Column(Text, nullable=True)
     system_instruction = Column(Text, nullable=True)
 
+    chat_summary = Column(Text, nullable=True)
+    summary_message_count = Column(Integer, nullable=False, default=0)
+
     created_at = Column(DateTime, default=_utcnow)
 
     chats = relationship("ChatLog", back_populates="owner", cascade="all, delete-orphan")
