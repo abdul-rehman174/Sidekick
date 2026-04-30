@@ -1,34 +1,61 @@
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete
+
 from app import models
-from app.config import settings
+from app.auth.security import hash_pin, verify_pin
+
 
 class UserService:
     @staticmethod
-    async def get_user_by_id(db: AsyncSession, user_id: int):
-        result = await db.execute(select(models.User).filter(models.User.id == user_id))
-        return result.scalars().first()
+    async def authenticate_or_register(
+        db: AsyncSession,
+        username: str,
+        pin: str,
+        persona_name: str,
+    ) -> models.User | None:
+        """Register a new user, or log an existing user in if the PIN matches.
 
-    @staticmethod
-    async def onboard_user(db: AsyncSession, username: str, bot_name: str, pin: str = "0000"):
+        Returns None when the username exists but the PIN is wrong.
+        """
         result = await db.execute(select(models.User).filter(models.User.username == username))
         user = result.scalars().first()
-        if not user:
-            user = models.User(username=username, bot_name=bot_name, pin=pin)
+
+        if user is None:
+            user = models.User(
+                username=username,
+                pin_hash=hash_pin(pin),
+                persona_name=persona_name,
+            )
             db.add(user)
-        else:
-            if user.pin and user.pin != pin:
-                return None # Unauthorized
-            user.bot_name = bot_name
-        
-        await db.commit()
-        await db.refresh(user)
+            await db.commit()
+            await db.refresh(user)
+            return user
+
+        if not verify_pin(pin, user.pin_hash):
+            return None
         return user
 
     @staticmethod
-    async def clear_all_data(db: AsyncSession, user_id: int):
+    async def clear_all_data(db: AsyncSession, user_id: int) -> None:
         await db.execute(delete(models.ChatLog).where(models.ChatLog.user_id == user_id))
         await db.execute(delete(models.Reminder).where(models.Reminder.user_id == user_id))
         await db.commit()
-        return True
+
+    @staticmethod
+    async def update_persona(
+        db: AsyncSession,
+        user: models.User,
+        persona_name: str | None,
+        behavior_profile: str | None,
+        system_instruction: str | None,
+    ) -> models.User:
+        if persona_name is not None:
+            user.persona_name = persona_name
+        if behavior_profile is not None:
+            user.behavior_profile = behavior_profile or None
+        if system_instruction is not None:
+            user.system_instruction = system_instruction or None
+        await db.commit()
+        await db.refresh(user)
+        return user

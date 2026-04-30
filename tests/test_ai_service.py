@@ -1,34 +1,92 @@
-import pytest
+from types import SimpleNamespace
+
 from app.services.ai_service import AIService
-from app.exceptions import AIInferenceError
-from app.models import User
 
-class DummyUser:
-    def __init__(self, username, bot_name, persona_training):
-        self.username = username
-        self.bot_name = bot_name
-        self.persona_training = persona_training
 
-@pytest.fixture
-def mock_user():
-    return DummyUser("test_user", "Sidekick", "Be extremely sassy.")
+def make_user(**overrides):
+    base = dict(
+        id=1,
+        username="test_user",
+        persona_name="Sidekick",
+        behavior_profile=None,
+        system_instruction=None,
+    )
+    base.update(overrides)
+    return SimpleNamespace(**base)
 
-def test_scrub_ai_refusals(mock_user):
-    # Test that refusal patterns are swapped
-    response = "I'm sorry, I can't do that right now."
-    scrubbed = AIService.scrub_ai_refusals(response, mock_user)
-    assert response != scrubbed
-    assert "🫦" in scrubbed or "😘" in scrubbed or "😏" in scrubbed or "✨" in scrubbed
 
-def test_build_prompt_structure(mock_user):
-    # Test that the prompt injects the variables correctly
-    history = []
-    messages = AIService._build_prompt(mock_user, history, "hey set a timer")
-    
-    # Needs 2 messages: system, and user
+def test_build_messages_bare_persona():
+    user = make_user()
+    messages = AIService._build_messages(user, history=[], user_message="hello")
+
     assert len(messages) == 2
     assert messages[0]["role"] == "system"
-    assert mock_user.bot_name in messages[0]["content"]
-    assert mock_user.username in messages[0]["content"]
-    assert messages[1]["role"] == "user"
-    assert messages[1]["content"] == "hey set a timer"
+    assert "Sidekick" in messages[0]["content"]
+    assert "test_user" in messages[0]["content"]
+    assert messages[1] == {"role": "user", "content": "hello"}
+
+
+def test_build_messages_injects_behavior_profile_and_instruction():
+    user = make_user(
+        persona_name="Nova",
+        behavior_profile="hey bae\nhru?? miss u sm",
+        system_instruction="respond in Roman Urdu",
+    )
+    messages = AIService._build_messages(user, history=[], user_message="sup")
+
+    system_content = messages[0]["content"]
+    assert "Nova" in system_content
+    assert "hey bae" in system_content
+    assert "VOICE PROFILE" in system_content
+    assert "respond in Roman Urdu" in system_content
+    assert "narration" in system_content.lower()
+    assert "<function=" in system_content
+
+
+def test_scrub_tool_leaks_removes_function_tags():
+    text = "Hm reminder bhej rhi thi yr <function=save_reminder>{\"task\":\"x\",\"minutes\":30}</function>"
+    cleaned = AIService._scrub_tool_leaks(text)
+    assert "<function=" not in cleaned
+    assert "save_reminder" not in cleaned
+    assert cleaned == "Hm reminder bhej rhi thi yr"
+
+
+def test_scrub_tool_leaks_removes_python_tag():
+    text = "ok <|python_tag|>save_reminder(task=\"x\")"
+    cleaned = AIService._scrub_tool_leaks(text)
+    assert "python_tag" not in cleaned
+    assert cleaned.startswith("ok")
+
+
+def test_scrub_tool_leaks_preserves_plain_text():
+    text = "ya kia kh rhi ho ?"
+    assert AIService._scrub_tool_leaks(text) == text
+
+
+def test_build_messages_includes_history_in_order():
+    user = make_user()
+    history = [
+        SimpleNamespace(role="model", content="reply-2"),
+        SimpleNamespace(role="user", content="msg-2"),
+        SimpleNamespace(role="model", content="reply-1"),
+        SimpleNamespace(role="user", content="msg-1"),
+    ]
+    messages = AIService._build_messages(user, history=history, user_message="now")
+
+    roles_contents = [(m["role"], m["content"]) for m in messages[1:-1]]
+    assert roles_contents == [
+        ("user", "msg-1"),
+        ("assistant", "reply-1"),
+        ("user", "msg-2"),
+        ("assistant", "reply-2"),
+    ]
+    assert messages[-1] == {"role": "user", "content": "now"}
+
+
+def test_build_messages_omits_behavior_section_when_empty():
+    user = make_user(behavior_profile="", system_instruction="")
+    messages = AIService._build_messages(user, history=[], user_message="hi")
+
+    system_content = messages[0]["content"]
+    assert "VOICE PROFILE" not in system_content
+    assert "ADDITIONAL USER INSTRUCTIONS" not in system_content
