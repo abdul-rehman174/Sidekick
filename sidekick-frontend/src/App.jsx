@@ -45,6 +45,7 @@ function App() {
   const [onboardingForm, setOnboardingForm] = useState({ username: '', personaName: '', password: '' });
   const [authMode, setAuthMode] = useState('login');
   const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
   const [compressing, setCompressing] = useState(false);
   // TOKEN_COUNTER: session totals for debug UI — remove when done testing
   const [sessionTokens, setSessionTokens] = useState({ prompt: 0, completion: 0, total: 0, calls: 0 });
@@ -157,21 +158,26 @@ function App() {
   const handleOnboard = async (e) => {
     e.preventDefault();
     setAuthError('');
+    setAuthNotice('');
     if (!onboardingForm.username || !onboardingForm.password) return;
     setLoading(true);
     try {
-      const endpoint = authMode === 'register' ? '/api/register' : '/api/login';
-      const body = authMode === 'register'
-        ? {
-            username: onboardingForm.username,
-            password: onboardingForm.password,
-            persona_name: onboardingForm.personaName || 'Sidekick',
-          }
-        : {
-            username: onboardingForm.username,
-            password: onboardingForm.password,
-          };
-      const res = await axios.post(`${API_BASE}${endpoint}`, body);
+      if (authMode === 'register') {
+        await axios.post(`${API_BASE}/api/register`, {
+          username: onboardingForm.username,
+          password: onboardingForm.password,
+          persona_name: onboardingForm.personaName || 'Sidekick',
+        });
+        setAuthMode('login');
+        setAuthNotice('Account created — sign in below 💕');
+        setOnboardingForm(f => ({ username: f.username, personaName: '', password: '' }));
+        return;
+      }
+
+      const res = await axios.post(`${API_BASE}/api/login`, {
+        username: onboardingForm.username,
+        password: onboardingForm.password,
+      });
       const newUser = {
         id: res.data.user_id,
         username: res.data.username,
@@ -309,6 +315,10 @@ function App() {
     setUser(null);
     setMessages([]);
     setReminders([]);
+    setAuthMode('login');
+    setOnboardingForm({ username: '', personaName: '', password: '' });
+    setAuthError('');
+    setAuthNotice('');
   };
 
   if (!user) {
@@ -330,14 +340,14 @@ function App() {
           <div className="flex bg-blush-50 p-1 rounded-xl mb-5">
             <button
               type="button"
-              onClick={() => { setAuthMode('login'); setAuthError(''); }}
+              onClick={() => { setAuthMode('login'); setAuthError(''); setAuthNotice(''); }}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${authMode === 'login' ? 'bg-white text-blush-600 shadow-sm' : 'text-slate-500'}`}
             >
               Sign in
             </button>
             <button
               type="button"
-              onClick={() => { setAuthMode('register'); setAuthError(''); }}
+              onClick={() => { setAuthMode('register'); setAuthError(''); setAuthNotice(''); }}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${authMode === 'register' ? 'bg-white text-blush-600 shadow-sm' : 'text-slate-500'}`}
             >
               Register
@@ -374,6 +384,7 @@ function App() {
               />
             </Field>
             {authError && <p className="text-sm text-red-500 text-center">{authError}</p>}
+            {authNotice && <p className="text-sm text-emerald-600 text-center">{authNotice}</p>}
             <button
               type="submit" disabled={loading}
               className="w-full bg-gradient-to-r from-blush-500 to-fuchsia-500 hover:from-blush-600 hover:to-fuchsia-600 text-white font-semibold py-3.5 rounded-2xl shadow transition active:scale-[0.98] disabled:opacity-50"
