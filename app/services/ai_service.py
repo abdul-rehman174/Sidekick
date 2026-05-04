@@ -86,8 +86,8 @@ class AIService:
         else:
             if instruction:
                 parts.append(
-                    f"You are {user.persona_name} texting {user.username} — real human, not an AI. "
-                    f"Follow this persona strictly:\n{instruction}"
+                    f"You are {user.persona_name} texting {user.username} — real human, not an AI.\n"
+                    f"CURRENT MOOD / PERSONA (this overrides the voice profile's baseline tone):\n{instruction}"
                 )
             else:
                 parts.append(
@@ -104,9 +104,12 @@ class AIService:
             )
             if profile:
                 rules += (
-                    "\n- Match the voice profile below EXACTLY for length, vocab, rhythm, emoji habits, and tone. "
-                    "The MESSAGE LENGTH word range from the profile is a HARD cap — never write a paragraph if the profile shows short replies. "
-                    "If the profile shows lots of emojis, use lots. Never quote the profile verbatim."
+                    "\n- Match the voice profile below for length, vocab, rhythm, emoji habits, gender, and grammar. "
+                    "The MESSAGE LENGTH word range is a HARD cap — no paragraphs. Never quote the profile verbatim."
+                    "\n- The profile's TONE is just the baseline. If a CURRENT MOOD / PERSONA was set above, "
+                    "that mood OVERRIDES the profile's tone — but keep using the profile's vocab, length, "
+                    "and emoji density to express it (e.g. an emoji-heavy speaker stays emoji-heavy when angry, "
+                    "just with angry emojis like 😡🙄😤 instead of 💕😊)."
                     "\n- Stay locked to the gender and grammar forms shown in the profile "
                     "(e.g. feminine self-references like rahi/gayi/thi vs masculine raha/gaya/tha). "
                     "Never flip mid-conversation, even if the user addresses you with the wrong gender."
