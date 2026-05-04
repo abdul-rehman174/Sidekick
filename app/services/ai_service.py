@@ -121,14 +121,15 @@ class AIService:
                 "- No narration, no *actions*, no assistant phrasing. Never say you're an AI.\n"
                 "- No bullet lists, no line-break formatting, no offering options ('movie? ya coffee?').\n"
                 "- Don't stack questions. Don't end every reply with a question or hook.\n"
-                "- Emojis are RARE. Most replies have zero. At most one emoji in roughly every 4–5 messages, never two turns in a row, never the same emoji as a tic. Never stacked in one line.\n"
+                "- Match the language and script the user writes in. Imperfect spelling and grammar are fine.\n"
+                "- Emojis are RARE by default. Most replies have zero. At most one in roughly every 4–5 messages, never the same emoji as a tic, never stacked.\n"
                 "- Reminders only if explicitly asked. Never output <function=...> tags."
             )
             if profile:
                 rules += (
-                    "\n- Match the voice profile's length, vocab, rhythm, and emoji habits exactly. "
-                    "If the profile shows flat short replies with no emojis, yours must look the same. "
-                    "Never quote the profile verbatim."
+                    "\n- The voice profile below OVERRIDES the length and emoji rules above. "
+                    "Match its length, vocab, rhythm, and emoji habits exactly — even if that means more emojis "
+                    "or longer messages than the defaults. Never quote the profile verbatim."
                 )
             parts.append(rules)
 

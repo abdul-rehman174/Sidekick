@@ -53,6 +53,10 @@ def test_build_messages_injects_behavior_profile_and_instruction():
     assert "respond in Roman Urdu" in system_content
     assert "narration" in system_content.lower()
     assert "<function=" in system_content
+    # Profile must explicitly override the generic emoji/length rules.
+    assert "OVERRIDES" in system_content
+    # Persona branch should also tell the model to mirror the user's language.
+    assert "Match the language" in system_content
 
 
 def test_scrub_tool_leaks_removes_function_tags():
