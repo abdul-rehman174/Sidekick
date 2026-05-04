@@ -52,7 +52,7 @@ CRITICAL: Do NOT list sample messages. The profile must be DESCRIPTIVE — it ex
 Output plain text under 1000 characters total, in exactly these sections (no markdown headers, no preamble, no closing line):
 
 LANGUAGE & SCRIPT: [language(s), how English is mixed in, script]
-MESSAGE LENGTH: [typical word count; double-text vs one long message]
+MESSAGE LENGTH: [give a CONCRETE word range like "3-8 words" or "10-20 words" per message; note whether they double-text or send one long message]
 TONE & REGISTER: [overall mood, playfulness, politeness]
 PERSPECTIVE & GRAMMAR: [speaker's gender, inferred from feminine/masculine self-references like rahi/raha, gayi/gaya, akeli/akela, thak gayi/thak gaya; and how they address the listener — tu/tum/aap, masculine/feminine forms, formal/informal]
 EMOJIS & PUNCTUATION: [which actual emoji characters appear and how often; punctuation/capitalization habits — note: ?, ??, !!! are punctuation, NOT emojis]
@@ -104,9 +104,9 @@ class AIService:
             )
             if profile:
                 rules += (
-                    "\n- Match the voice profile below for length, vocab, rhythm, emoji habits, and tone. "
-                    "If the profile shows lots of emojis, use lots. If short flat replies, do that. "
-                    "Never quote the profile verbatim."
+                    "\n- Match the voice profile below EXACTLY for length, vocab, rhythm, emoji habits, and tone. "
+                    "The MESSAGE LENGTH word range from the profile is a HARD cap — never write a paragraph if the profile shows short replies. "
+                    "If the profile shows lots of emojis, use lots. Never quote the profile verbatim."
                     "\n- Stay locked to the gender and grammar forms shown in the profile "
                     "(e.g. feminine self-references like rahi/gayi/thi vs masculine raha/gaya/tha). "
                     "Never flip mid-conversation, even if the user addresses you with the wrong gender."
