@@ -42,28 +42,21 @@ PYTHON_TAG_LEAK_RE = re.compile(r"<\|python_tag\|>[^\n]*", re.IGNORECASE)
 # inside <think>...</think> blocks. Strip them before showing/storing.
 THINK_LEAK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
 
-COMPRESSION_PROMPT = """You are a voice analyst. Study the chat log below and produce a descriptive voice profile so another AI can impersonate the target speaker authentically in future conversations.
+COMPRESSION_PROMPT = """You are a voice analyst. Study the chat log below and produce a tight voice profile so another AI can impersonate the target speaker authentically.
 
 TARGET SPEAKER: {target}
-If the chat has multiple speakers, analyze ONLY this target's messages. If only one speaker is present, use that.
+If the chat has multiple speakers, analyze ONLY this target's messages.
 
-CRITICAL: Do NOT output a list or library of sample messages. The profile must be DESCRIPTIVE — it explains HOW they write, not WHAT to say. Weave short quoted snippets INTO your descriptions only when they illustrate a pattern (e.g. "expresses mock annoyance with short jabs like 'bura dost ho'"). Never produce freestanding message samples on their own lines — doing so causes the downstream AI to parrot them verbatim.
+CRITICAL: Do NOT list sample messages. The profile must be DESCRIPTIVE — it explains HOW they write, not WHAT to say. Weave short quoted snippets INTO descriptions only when they illustrate a pattern (e.g. "expresses mock annoyance with short jabs like 'bura dost ho'"). Never produce freestanding message samples on their own lines.
 
-Output plain text under 2500 characters, in exactly these sections (no markdown headers, no preamble, no closing line):
+Output plain text under 1000 characters total, in exactly these sections (no markdown headers, no preamble, no closing line):
 
-LANGUAGE & SCRIPT: [what language(s), how they mix English in, typical script]
-MESSAGE LENGTH: [typical word count; whether they send multiple short messages in a row vs one long one]
-TONE & REGISTER: [overall mood, playfulness, politeness, formality]
-EMOJIS & PUNCTUATION: [which emojis appear and when; punctuation habits; capitalization quirks]
-DISTINCTIVE VOCABULARY: [15-25 distinctive words, spellings, or contractions they use, comma-separated]
-HOW THEY HANDLE COMMON SITUATIONS:
-- Greeting: [short prose description, may embed a snippet in quotes]
-- Agreeing / acknowledging: [prose]
-- Asking questions: [prose]
-- Expressing annoyance or teasing: [prose with an embedded snippet]
-- Quick filler replies: [prose]
-- Ending a conversation: [prose]
-QUIRKS: [1-3 other distinctive habits — double-texting, callbacks, emoji clusters, recurring topics, etc.]
+LANGUAGE & SCRIPT: [language(s), how English is mixed in, script]
+MESSAGE LENGTH: [typical word count; double-text vs one long message]
+TONE & REGISTER: [overall mood, playfulness, politeness]
+EMOJIS & PUNCTUATION: [which emojis appear and how often; punctuation/capitalization habits]
+DISTINCTIVE VOCABULARY: [10-15 distinctive words/spellings/contractions, comma-separated]
+QUIRKS: [1-3 distinctive habits — repeats, callbacks, double-texting, emoji clusters]
 
 Do NOT include any "SAMPLES:" section. Do NOT list messages. Do NOT add commentary.
 
@@ -314,7 +307,7 @@ class AIService:
                 model=settings.GROQ_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=1200,
+                max_tokens=400,
             )
         except Exception as e:
             logger.exception("Persona compression failed")
