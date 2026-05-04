@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:5173"
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    AI_TEMPERATURE: float = 0.7
+    AI_TOP_P: float = 0.85
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

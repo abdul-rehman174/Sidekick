@@ -261,8 +261,8 @@ class AIService:
                 messages=messages,
                 tools=tools,
                 tool_choice=tool_choice,
-                temperature=0.7,
-                top_p=0.85,
+                temperature=settings.AI_TEMPERATURE,
+                top_p=settings.AI_TOP_P,
                 reasoning_format="hidden",
             )
         except Exception as e:
