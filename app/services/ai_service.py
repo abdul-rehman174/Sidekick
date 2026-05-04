@@ -252,9 +252,6 @@ class AIService:
         tools = get_sidekick_tools() if user_has_reminder_intent else None
         tool_choice = "auto" if user_has_reminder_intent else "none"
 
-        # reasoning_format="hidden" tells Groq to drop the chain-of-thought
-        # for reasoning models (qwen3, deepseek-r1-distill). Groq ignores it
-        # for non-reasoning models, so it's safe to always pass.
         try:
             completion = await AIService.client.chat.completions.create(
                 model=settings.GROQ_MODEL,
@@ -263,7 +260,6 @@ class AIService:
                 tool_choice=tool_choice,
                 temperature=settings.AI_TEMPERATURE,
                 top_p=settings.AI_TOP_P,
-                reasoning_format="hidden",
             )
         except Exception as e:
             logger.exception("Groq inference failed")
