@@ -65,6 +65,14 @@ def test_scrub_tool_leaks_preserves_plain_text():
     assert AIService._scrub_tool_leaks(text) == text
 
 
+def test_scrub_tool_leaks_strips_think_blocks():
+    text = "<think>Okay let me figure out a flirty reply.\nMaybe I should tease him.</think>\nhlo back :) busy with what?"
+    cleaned = AIService._scrub_tool_leaks(text)
+    assert "<think>" not in cleaned
+    assert "Okay let me" not in cleaned
+    assert cleaned == "hlo back :) busy with what?"
+
+
 def test_build_messages_includes_history_in_order():
     user = make_user()
     history = [

@@ -54,6 +54,9 @@ REMINDER_INTENT_RE = re.compile(
 
 FUNCTION_LEAK_RE = re.compile(r"<function=[^>]+>.*?</function>", re.DOTALL)
 PYTHON_TAG_LEAK_RE = re.compile(r"<\|python_tag\|>[^\n]*", re.IGNORECASE)
+# Qwen3 / DeepSeek-R1 / other reasoning models leak their chain-of-thought
+# inside <think>...</think> blocks. Strip them before showing/storing.
+THINK_LEAK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
 
 COMPRESSION_PROMPT = """You are a voice analyst. Study the chat log below and produce a descriptive voice profile so another AI can impersonate the target speaker authentically in future conversations.
 
@@ -148,6 +151,7 @@ class AIService:
 
     @staticmethod
     def _scrub_tool_leaks(text: str) -> str:
+        text = THINK_LEAK_RE.sub("", text)
         text = FUNCTION_LEAK_RE.sub("", text)
         text = PYTHON_TAG_LEAK_RE.sub("", text)
         return text.strip()
