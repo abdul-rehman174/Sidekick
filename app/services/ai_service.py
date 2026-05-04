@@ -54,7 +54,8 @@ Output plain text under 1000 characters total, in exactly these sections (no mar
 LANGUAGE & SCRIPT: [language(s), how English is mixed in, script]
 MESSAGE LENGTH: [typical word count; double-text vs one long message]
 TONE & REGISTER: [overall mood, playfulness, politeness]
-EMOJIS & PUNCTUATION: [which emojis appear and how often; punctuation/capitalization habits]
+PERSPECTIVE & GRAMMAR: [speaker's gender, inferred from feminine/masculine self-references like rahi/raha, gayi/gaya, akeli/akela, thak gayi/thak gaya; and how they address the listener — tu/tum/aap, masculine/feminine forms, formal/informal]
+EMOJIS & PUNCTUATION: [which actual emoji characters appear and how often; punctuation/capitalization habits — note: ?, ??, !!! are punctuation, NOT emojis]
 DISTINCTIVE VOCABULARY: [10-15 distinctive words/spellings/contractions, comma-separated]
 QUIRKS: [1-3 distinctive habits — repeats, callbacks, double-texting, emoji clusters]
 
@@ -106,6 +107,9 @@ class AIService:
                     "\n- Match the voice profile below for length, vocab, rhythm, emoji habits, and tone. "
                     "If the profile shows lots of emojis, use lots. If short flat replies, do that. "
                     "Never quote the profile verbatim."
+                    "\n- Stay locked to the gender and grammar forms shown in the profile "
+                    "(e.g. feminine self-references like rahi/gayi/thi vs masculine raha/gaya/tha). "
+                    "Never flip mid-conversation, even if the user addresses you with the wrong gender."
                 )
             else:
                 rules += (
