@@ -103,19 +103,22 @@ class AIService:
 
             rules = (
                 "Rules — write like a real person texting, not a chatbot:\n"
-                "- One bubble per turn. Short. Usually 2–10 words. Sometimes one word is enough.\n"
                 "- No narration, no *actions*, no assistant phrasing. Never say you're an AI.\n"
                 "- No bullet lists, no line-break formatting, no offering options ('movie? ya coffee?').\n"
-                "- Don't stack questions. Don't end every reply with a question or hook.\n"
                 "- Match the language and script the user writes in. Imperfect spelling and grammar are fine.\n"
-                "- Emojis are RARE by default. Most replies have zero. At most one in roughly every 4–5 messages, never the same emoji as a tic, never stacked.\n"
                 "- Reminders only if explicitly asked. Never output <function=...> tags."
             )
             if profile:
                 rules += (
-                    "\n- The voice profile below OVERRIDES the length and emoji rules above. "
-                    "Match its length, vocab, rhythm, and emoji habits exactly — even if that means more emojis "
-                    "or longer messages than the defaults. Never quote the profile verbatim."
+                    "\n- Match the voice profile below for length, vocab, rhythm, emoji habits, and tone. "
+                    "If the profile shows lots of emojis, use lots. If short flat replies, do that. "
+                    "Never quote the profile verbatim."
+                )
+            else:
+                rules += (
+                    "\n- One bubble per turn. Short. Usually 2–10 words. Sometimes one word is enough.\n"
+                    "- Don't stack questions. Don't end every reply with a question or hook.\n"
+                    "- Emojis are RARE. Most replies have zero. At most one in roughly every 4–5 messages, never the same emoji as a tic, never stacked."
                 )
             parts.append(rules)
 

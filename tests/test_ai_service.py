@@ -43,9 +43,11 @@ def test_build_messages_injects_behavior_profile_and_instruction():
     assert "respond in Roman Urdu" in system_content
     assert "narration" in system_content.lower()
     assert "<function=" in system_content
-    # Profile must explicitly override the generic emoji/length rules.
-    assert "OVERRIDES" in system_content
-    # Persona branch should also tell the model to mirror the user's language.
+    # When a profile is present, the persona rules must point at it directly
+    # and must NOT include the conflicting "emojis are RARE" default.
+    assert "Match the voice profile" in system_content
+    assert "Emojis are RARE" not in system_content
+    # Persona branch should still tell the model to mirror the user's language.
     assert "Match the language" in system_content
 
 
