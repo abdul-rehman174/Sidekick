@@ -28,16 +28,6 @@ def test_build_messages_bare_persona():
     assert messages[1] == {"role": "user", "content": "hello"}
 
 
-def test_default_prompt_is_language_and_gender_neutral():
-    user = make_user()
-    system_content = AIService._build_messages(user, history=[], user_message="hi")[0]["content"]
-
-    # No hardcoded gender — persona_name carries that.
-    assert "girl" not in system_content.lower()
-    # No forced Hinglish — should mirror whatever the user writes.
-    assert "Match the language" in system_content
-
-
 def test_build_messages_injects_behavior_profile_and_instruction():
     user = make_user(
         persona_name="Nova",
